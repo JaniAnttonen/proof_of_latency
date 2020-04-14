@@ -1,10 +1,10 @@
 extern crate vdf;
-use std::sync::mpsc::channel;
+use std::sync::mpsc;
 use std::thread;
 use vdf::{VDFParams, WesolowskiVDFParams, VDF};
 
 fn main() {
-    let (sender, receiver) = channel();
+    let (sender, receiver)= mpsc::channel();
     let num_bits: u16 = 2048;
     let wesolowski_vdf = WesolowskiVDFParams(num_bits).new();
 
