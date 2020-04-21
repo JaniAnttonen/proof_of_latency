@@ -9,6 +9,7 @@ use sha3::{Digest, Sha3_512};
 use primality::{is_prime, pow_mod};
 
 fn main() {
+    let (sender, receiver)= mpsc::channel();
     let num_bits: u16 = 2048;
     let worker = spawn_worker();
 
@@ -32,7 +33,6 @@ fn main() {
     // Verify the proof
     let is_ok = verify(&pi, &g, &res, l, T, &N);
     assert!(is_ok);
-
 }
 
 enum Msg {
