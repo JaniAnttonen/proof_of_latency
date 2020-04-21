@@ -24,11 +24,11 @@ fn main() {
    
     println!("VDF ran for {:?} times!", response.iterations);
     // Generate the proof
-    //let pi = prove(&g, &response.result, &Int::from(l), response.iterations, &N);
+    let pi = prove(&g, &response.result, &Int::from(l), response.iterations, &N);
 
     // Verify the proof
-    //let is_ok = verify(&pi, &g, &response.result, l, response.iterations, &N);
-    // assert!(is_ok);
+    let is_ok = verify(&pi, &g, &response.result, l, response.iterations, &N);
+    assert!(is_ok);
 }
 
 enum Msg {
@@ -46,7 +46,7 @@ fn run_vdf_worker(g: Int, N: Int) -> (Sender<Msg>, Receiver<VDFResponse>) {
 
     thread::spawn(move || {
         let mut ans = g.clone();
-        let mut T: u128 = 1;
+        let mut T: u128 = 0;
         loop {
             ans = ans.pow_mod(&Int::from(2), &N);
             T += 1;
