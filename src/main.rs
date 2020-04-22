@@ -7,28 +7,39 @@ use sha3::{Digest, Sha3_512};
 use primality::{is_prime, pow_mod};
 
 fn main() {
+    // TODO: replace one-letter variable names with more intuitive, less mathy ones.
+    // RSA Setup. TODO: Replace this with an interactive key setup between two peers
     let N = Int::from_str("135066410865995223349603216278805969938881475605667027524485143851526510604859533833940287150571909441798207282164471551373680419703964191743046496589274256239341020864383202110372958725762358509643110564073501508187510676594629205563685529475213500852879416377328533906109750544334999811150056977236890927563").expect("Cannot read string");
-    
-    let g = hash(&format!("VDFs are awesome"), &N);
+    let g = hash(&format!("Beep boop beep"), &N);
 
+    // TODO: Understand what this does
     let l = get_prime();
 
+    // Run the VDF, returning connection channels to push to and receive data from
     let (vdf_worker, worker_output) = run_vdf_worker(g.clone(), N.clone());
 
-    let sleep_time = time::Duration::from_secs(5);
+    // Sleep for 300 milliseconds to simulate latency overseas
+    let sleep_time = time::Duration::from_millis(300);
     thread::sleep(sleep_time);
 
+    // Send received signature from the other peer, "capping off" the 
     vdf_worker.send(Msg::Cap(String::from("asd")));
 
+    // Wait for response from VDF worker
     let response = worker_output.recv().unwrap();
    
     println!("VDF ran for {:?} times!", response.iterations);
+    println!("The output being {:?}", response.result);
+
     // Generate the proof
     let pi = prove(&g, &response.result, &Int::from(l), response.iterations, &N);
 
     // Verify the proof
     let is_ok = verify(&pi, &g, &response.result, l, response.iterations, &N);
-    assert!(is_ok);
+    match is_ok {
+        true => println!("The VDF is correct!"),
+        false => println!("The VDF couldn't be verified!"),
+    }
 }
 
 enum Msg {
