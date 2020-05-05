@@ -8,8 +8,14 @@ use primality::{is_prime, pow_mod};
 
 // rsa_mod = N, seed = g
 fn main() {
-    // RSA Setup. TODO: Replace this with an interactive key setup between two peers
+    // This parameter just needs to provide a group of unknown order, thus a large RSA number is
+    // required. N in the paper.
     let rsa_mod = Int::from_str("135066410865995223349603216278805969938881475605667027524485143851526510604859533833940287150571909441798207282164471551373680419703964191743046496589274256239341020864383202110372958725762358509643110564073501508187510676594629205563685529475213500852879416377328533906109750544334999811150056977236890927563").expect("Cannot read string");
+    
+    // Security parameter, g in the paper. This needs to be replaced with a key that's decided
+    // between two peers with Diffie-Hellman. The starting point for the VDF that gets squared
+    // repeatedly for T times. Used to verify that the calculations started here. That's why the
+    // setup needs to generate a random starting point that couldn't have been forged beforehand.
     let seed = hash(&format!("Beep boop beep"), &rsa_mod);
 
     // TODO: Understand what this does
@@ -51,7 +57,36 @@ struct VDFResponse {
     iterations: u128,
 }
 
-fn run_vdf_worker(g: Int, rsa_mod: Int) -> (Sender<Msg>, Receiver<VDFResponse>) {
+struct ProofOfLatency {
+    g: Int,
+    RSA_base: Int,
+    
+}
+
+impl ProofOfLatency { 
+    fn prove(&self, result: &Int, l: &Int, T: u128, N: &Int) -> Int {
+        let mut pi = Int::one();
+        let mut r = Int::one();
+        let mut b: Int;
+        for _ in 0..T {
+            b = 2 * &r / l;
+            r = (2 * &r) % l;
+            pi = pi.pow_mod(&Int::from(2), N) * g.pow_mod(&b, N);
+            pi %= N;
+        }
+        return pi;
+    }
+
+    fn verify(pi: &Int, g: &Int, h: &Int, l: u64, T: u128, N: &Int) -> bool {
+        if pi > N {
+            return false;
+        }
+        let r = pow_mod(2, T, l.into());
+        *h == (pi.pow_mod(&Int::from(l), &N) * g.pow_mod(&Int::from(r), &N)) % N
+    }
+}
+
+fn run_vdf_worker(g: Int, N: Int) -> (Sender<Msg>, Receiver<VDFResponse>) {
     let (tx, rx) = channel();
     let (res_channel, receiver) = channel();
 
@@ -59,7 +94,7 @@ fn run_vdf_worker(g: Int, rsa_mod: Int) -> (Sender<Msg>, Receiver<VDFResponse>) 
         let mut ans = g.clone();
         let mut iterations: u128 = 0;
         loop {
-            ans = ans.pow_mod(&Int::from(2), &rsa_mod);
+            ans = ans.pow_mod(&Int::from(2), &N);
             iterations += 1;
             let signal = rx.try_recv();
             match signal {
@@ -91,36 +126,16 @@ pub fn hash(s: &str, rsa_mod: &Int) -> Int {
     ans % rsa_mod
 }
 
-pub fn prove(g: &Int, h: &Int, l: &Int, iterations: u128, rsa_mod: &Int) -> Int {
-    let mut pi = Int::one();
-    let mut r = Int::one();
-    let mut b: Int;
-    for _ in 0..iterations {
-        b = 2 * &r / l;
-        r = (2 * &r) % l;
-        pi = pi.pow_mod(&Int::from(2), rsa_mod) * g.pow_mod(&b, rsa_mod);
-        pi %= rsa_mod;
-    }
-    return pi;
-}
-
 pub fn get_prime() -> u64 {
     let mut rng = rand::thread_rng();
     let mut l: u64;
     loop {
         l = rng.next_u64();
+        println!("{:?}", l);
         if is_prime(l.into(), 10) {
             break;
         }
     }
     l
-}
-
-pub fn verify(pi: &Int, g: &Int, h: &Int, l: u64, iterations: u128, rsa_mod: &Int) -> bool {
-    if pi > rsa_mod {
-        return false;
-    }
-    let r = pow_mod(2, iterations, l.into());
-    *h == (pi.pow_mod(&Int::from(l), &rsa_mod) * g.pow_mod(&Int::from(r), &rsa_mod)) % rsa_mod
 }
 
