@@ -51,6 +51,35 @@ struct VDFResponse {
     iterations: u128,
 }
 
+struct ProofOfLatency {
+    g: Int,
+    RSA_base: Int,
+    
+}
+
+impl ProofOfLatency { 
+    fn prove(&self, result: &Int, l: &Int, T: u128, N: &Int) -> Int {
+        let mut pi = Int::one();
+        let mut r = Int::one();
+        let mut b: Int;
+        for _ in 0..T {
+            b = 2 * &r / l;
+            r = (2 * &r) % l;
+            pi = pi.pow_mod(&Int::from(2), N) * g.pow_mod(&b, N);
+            pi %= N;
+        }
+        return pi;
+    }
+
+    fn verify(pi: &Int, g: &Int, h: &Int, l: u64, T: u128, N: &Int) -> bool {
+        if pi > N {
+            return false;
+        }
+        let r = pow_mod(2, T, l.into());
+        *h == (pi.pow_mod(&Int::from(l), &N) * g.pow_mod(&Int::from(r), &N)) % N
+    }
+}
+
 fn run_vdf_worker(g: Int, N: Int) -> (Sender<Msg>, Receiver<VDFResponse>) {
     let (tx, rx) = channel();
     let (res_channel, receiver) = channel();
@@ -91,36 +120,16 @@ pub fn hash(s: &str, N: &Int) -> Int {
     ans % N
 }
 
-pub fn prove(g: &Int, h: &Int, l: &Int, T: u128, N: &Int) -> Int {
-    let mut pi = Int::one();
-    let mut r = Int::one();
-    let mut b: Int;
-    for _ in 0..T {
-        b = 2 * &r / l;
-        r = (2 * &r) % l;
-        pi = pi.pow_mod(&Int::from(2), N) * g.pow_mod(&b, N);
-        pi %= N;
-    }
-    return pi;
-}
 
 pub fn get_prime() -> u64 {
     let mut rng = rand::thread_rng();
     let mut l: u64;
     loop {
         l = rng.next_u64();
+        println!("{:?}", l);
         if is_prime(l.into(), 10) {
             break;
         }
     }
     l
 }
-
-pub fn verify(pi: &Int, g: &Int, h: &Int, l: u64, T: u128, N: &Int) -> bool {
-    if pi > N {
-        return false;
-    }
-    let r = pow_mod(2, T, l.into());
-    *h == (pi.pow_mod(&Int::from(l), &N) * g.pow_mod(&Int::from(r), &N)) % N
-}
-
