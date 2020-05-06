@@ -130,6 +130,7 @@ impl ProofOfLatency {
                 iterations += 1;
 
                 if iterations == self.upper_bound {
+                    println!("Cap wasn't received until upper bound was reached, generating proof of already calculated work");
                     let self_cap = get_prime(); 
                     let proof = self.generate_proof(VDFResult{result, iterations}, self_cap);
                     res_channel.send(Ok(proof));
@@ -139,11 +140,13 @@ impl ProofOfLatency {
                 let cap = rx.try_recv();
                 match cap {
                     Ok(cap) => {
+                        println!("Received the cap for the VDF! Generating proof with {:?}", cap);
                         let proof = self.generate_proof(VDFResult{result, iterations}, cap);
                         res_channel.send(Ok(proof));
                         break;
                     },
-                    Err(_) => {
+                    Err(cap) => {
+                        println!("Whoops, i panicked, because {:?}", cap);
                         res_channel.send(Err(InvalidCapError));
                         break;
                     }
