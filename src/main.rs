@@ -28,7 +28,7 @@ fn main() {
     // OH YES, it's a random prime that gets used in the proof and verification. This has to be
     // sent from another peer and this actually is the thing that ends the calculation and
     // facilitates the proof.
-    let cap = get_prime();
+    let cap: u128 = get_prime().into();
 
     // Run the VDF, returning connection channels to push to and receive data from
     let (vdf_worker, worker_output) = proof_of_latency.run_vdf_worker();
@@ -145,10 +145,8 @@ impl ProofOfLatency {
                         res_channel.send(Ok(proof));
                         break;
                     },
-                    Err(cap) => {
-                        println!("Whoops, i panicked, because {:?}", cap);
-                        res_channel.send(Err(InvalidCapError));
-                        break;
+                    Err(_) => {
+                        continue;
                     }
                 }
             }
@@ -179,7 +177,6 @@ pub fn get_prime() -> u128 {
     let mut l: u128;
     loop {
         l = rng.next_u64().into();
-        println!("{:?}", l);
         if is_prime(l.into(), 10) {
             break;
         }
