@@ -1,8 +1,10 @@
 use std::sync::mpsc::{Sender, channel, Receiver};
-use std::{thread, time};
+use std::{thread};
 use std::error::Error;
 use std::fmt;
 use ramp::Int;
+
+pub mod util;
 
 #[derive(Debug)]
 pub struct InvalidCapError;
@@ -20,22 +22,22 @@ impl Error for InvalidCapError {
 }
 
 pub struct VDFResult {
-    result: Int,
-    iterations: u128,
+    pub result: Int,
+    pub iterations: u128,
 }
 
 pub struct VDFProof {
-    rsa_mod: Int,
-    seed: Int,
-    output: VDFResult,
-    cap: u128,
-    proof: Int,
+    pub rsa_mod: Int,
+    pub seed: Int,
+    pub output: VDFResult,
+    pub cap: u128,
+    pub proof: Int,
 }
     
 pub struct ProofOfLatency {
-    rsa_mod: Int,
-    seed: Int,
-    upper_bound: u128, 
+    pub rsa_mod: Int,
+    pub seed: Int,
+    pub upper_bound: u128, 
 }
 
 impl VDFProof {
@@ -80,7 +82,7 @@ impl ProofOfLatency {
 
                 if iterations == self.upper_bound {
                     println!("Cap wasn't received until upper bound was reached, generating proof of already calculated work");
-                    let self_cap = get_prime(); 
+                    let self_cap = util::get_prime(); 
                     let proof = self.generate_proof(VDFResult{result, iterations}, self_cap);
                     res_channel.send(Ok(proof));
                     break;
