@@ -1,5 +1,6 @@
 use std::sync::mpsc::{Sender, channel, Receiver};
-use std::{thread};
+use std::thread;
+use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 use ramp::Int;
@@ -21,23 +22,39 @@ impl Error for InvalidCapError {
     }
 }
 
+#[derive(Debug)]
 pub struct VDFResult {
     pub result: Int,
     pub iterations: u128,
 }
 
+impl Ord for VDFResult {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.iterations.cmp(&other.iterations)
+    }
+}
+
+impl PartialOrd for VDFResult {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for VDFResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.iterations == other.iterations
+    }
+}
+
+impl Eq for VDFResult {}
+
+#[derive(Debug)]
 pub struct VDFProof {
     pub rsa_mod: Int,
     pub seed: Int,
     pub output: VDFResult,
     pub cap: u128,
     pub proof: Int,
-}
-    
-pub struct ProofOfLatency {
-    pub rsa_mod: Int,
-    pub seed: Int,
-    pub upper_bound: u128, 
 }
 
 impl VDFProof {
@@ -50,9 +67,30 @@ impl VDFProof {
         let r = util::pow_mod(2, self.output.iterations, self.cap);
         self.output.result == (self.proof.pow_mod(&Int::from(cap_int), &self.rsa_mod) * self.seed.pow_mod(&Int::from(r), &self.rsa_mod)) % &self.rsa_mod
     }
+    pub fn abs_difference(&self, other: VDFProof) -> u128 {
+        let comparison = self.output > other.output;
+        let mut diff: u128 = 0; 
+        match comparison {
+            true => {
+                diff = self.output.iterations - other.output.iterations;
+            },
+            false => {
+                diff = other.output.iterations - self.output.iterations;
+            }
+        }
+        diff
+    }
 }
 
-impl ProofOfLatency {
+#[derive(Debug)]
+pub struct VDF {
+    pub rsa_mod: Int,
+    pub seed: Int,
+    pub upper_bound: u128, 
+    pub cap: u128,
+}
+
+impl VDF {
     fn generate_proof(&self, result: VDFResult, cap: u128) -> VDFProof {
         let mut proof = Int::one();
         let mut r = Int::one();
@@ -82,6 +120,9 @@ impl ProofOfLatency {
 
                 if iterations == self.upper_bound {
                     println!("Cap wasn't received until upper bound was reached, generating proof of already calculated work");
+                    let mut self_cap: u128 = self.cap;
+                    if util::is_prime(self_cap, 10) {
+
                     let self_cap = util::get_prime(); 
                     let proof = self.generate_proof(VDFResult{result, iterations}, self_cap);
                     res_channel.send(Ok(proof));
@@ -89,6 +130,7 @@ impl ProofOfLatency {
                 }
 
                 let cap = rx.try_recv();
+
                 match cap {
                     Ok(cap) => {
                         println!("Received the cap for the VDF! Generating proof with {:?}", cap);

@@ -49,5 +49,7 @@ fn main() {
         true => println!("The VDF is correct!"),
         false => println!("The VDF couldn't be verified!"),
     }
+
+    p2p::run().unwrap();
 }
 
