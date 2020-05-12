@@ -1,9 +1,11 @@
 use std::sync::mpsc::{Sender, channel, Receiver};
-use std::thread;
+use std::{thread, time};
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 use ramp::Int;
+use std::convert::TryInto;
+use primal::{is_prime};
 
 pub mod util;
 
@@ -53,7 +55,7 @@ pub struct VDFProof {
     pub rsa_mod: Int,
     pub seed: Int,
     pub output: VDFResult,
-    pub cap: u128,
+    pub cap: u64,
     pub proof: Int,
 }
 
@@ -64,12 +66,12 @@ impl VDFProof {
         if self.proof > self.rsa_mod {
             return false;
         } 
-        let r = util::pow_mod(2, self.output.iterations, self.cap);
+        let r = util::pow_mod(2, self.output.iterations, self.cap.into());
         self.output.result == (self.proof.pow_mod(&Int::from(cap_int), &self.rsa_mod) * self.seed.pow_mod(&Int::from(r), &self.rsa_mod)) % &self.rsa_mod
     }
     pub fn abs_difference(&self, other: VDFProof) -> u128 {
         let comparison = self.output > other.output;
-        let mut diff: u128 = 0; 
+        let diff: u128;
         match comparison {
             true => {
                 diff = self.output.iterations - other.output.iterations;
@@ -87,11 +89,29 @@ pub struct VDF {
     pub rsa_mod: Int,
     pub seed: Int,
     pub upper_bound: u128, 
-    pub cap: u128,
+    pub cap: u64,
 }
 
 impl VDF {
-    fn generate_proof(&self, result: VDFResult, cap: u128) -> VDFProof {
+    pub fn new(rsa_mod: Int, seed: Int) -> Self {
+        VDF{rsa_mod, seed, upper_bound: 0, cap: 0}
+    }
+    pub fn estimate_upper_bound(mut self, ms_bound: u64) -> Self { 
+        let rsa_mod = util::get_prime().into();
+        let seed = util::hash(&format!("upper bound test"), &rsa_mod);
+        let instance = VDF::new(rsa_mod, seed);
+        let cap: u64 = util::get_prime().into();
+        let (vdf_worker, worker_output) = instance.run_vdf_worker();
+
+        let sleep_time = time::Duration::from_millis(ms_bound);
+        thread::sleep(sleep_time);
+        vdf_worker.send(cap).unwrap();
+        let response = worker_output.recv().unwrap().unwrap();
+        
+        self.upper_bound = response.output.iterations;
+        self
+    }
+    fn generate_proof(&self, result: VDFResult, cap: u64) -> VDFProof {
         let mut proof = Int::one();
         let mut r = Int::one();
         let mut b: Int;
@@ -106,8 +126,7 @@ impl VDF {
 
         return VDFProof{rsa_mod: self.rsa_mod.clone(), seed: self.seed.clone(), output: result, cap, proof};
     }
-
-    pub fn run_vdf_worker(self) -> (Sender<u128>, Receiver<Result<VDFProof, InvalidCapError>>) {
+    pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (tx, rx) = channel();
         let (res_channel, receiver) = channel();
 
@@ -119,11 +138,19 @@ impl VDF {
                 iterations += 1;
 
                 if iterations == self.upper_bound {
-                    println!("Cap wasn't received until upper bound was reached, generating proof of already calculated work");
-                    let mut self_cap: u128 = self.cap;
-                    if util::is_prime(self_cap, 10) {
+                    println!("Cap wasn't received until upper bound of {:?} was reached, generating proof of already calculated work", iterations);
 
-                    let self_cap = util::get_prime(); 
+                    // Check if the cap is prime
+                    let mut self_cap: u64 = self.cap;
+                    if self_cap == 0 {
+                        self_cap = util::get_prime(); 
+                    }
+                    if !is_prime(self_cap) {
+                        println!("{:?}", self_cap);
+                        res_channel.send(Err(InvalidCapError));
+                        break;
+                    }
+
                     let proof = self.generate_proof(VDFResult{result, iterations}, self_cap);
                     res_channel.send(Ok(proof));
                     break;

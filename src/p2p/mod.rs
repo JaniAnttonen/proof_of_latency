@@ -33,6 +33,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     // Create a swarm to manage peers and events.
     let mut swarm = {
+        let cfg = gossipsub::GossipsubConfig::default();
         // Create a Kademlia behaviour.
         let mut cfg = KademliaConfig::default();
 
