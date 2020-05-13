@@ -98,6 +98,7 @@ impl VDF {
             cap: 0,
         }
     }
+
     pub fn estimate_upper_bound(self, ms_bound: u64) -> VDF {
         let cap: u64 = util::get_prime();
         let (vdf_worker, worker_output) = self.clone().run_vdf_worker();
@@ -111,6 +112,7 @@ impl VDF {
         vdf.upper_bound = response.output.iterations;
         vdf
     }
+
     fn generate_proof(&self, result: VDFResult, cap: u64) -> VDFProof {
         let mut proof = Int::one();
         let mut r = Int::one();
@@ -133,6 +135,7 @@ impl VDF {
             proof,
         }
     }
+
     pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (tx, rx) = channel();
         let (res_channel, receiver) = channel();
@@ -145,34 +148,57 @@ impl VDF {
                 iterations += 1;
 
                 if iterations == self.upper_bound {
-                    println!("Cap wasn't received until upper bound of {:?} was reached, generating proof of already calculated work", iterations);
+                    // Upper bound reached, stops iteration and calculates the proof
+                    println!("Upper bound of {:?} reached, generating proof.", iterations);
 
-                    // Check if the cap is prime
+                    // Copy pregenerated cap
                     let mut self_cap: u64 = self.cap;
+
+                    // Check if default, check for primality if else
                     if self_cap == 0 {
                         self_cap = util::get_prime();
                     } else if !is_prime(self_cap) {
-                        println!("{:?}", self_cap);
-                        res_channel.send(Err(InvalidCapError));
+                        if res_channel.send(Err(InvalidCapError)).is_err() {
+                            println!(
+                                "Self-generated cap was not a prime! Check the implementation!"
+                            );
+                        }
                         break;
                     }
 
+                    // Generate the VDF proof
                     let proof = self.generate_proof(VDFResult { result, iterations }, self_cap);
 
-                    println!("Proof: {:?}", proof);
-                    res_channel.send(Ok(proof));
+                    // Send proof to caller
+                    if res_channel.send(Ok(proof)).is_err() {
+                        println!("Failed to send the proof to caller!");
+                    }
                     break;
                 } else {
+                    // Try receiving cap from caller on each iteration
                     let cap = rx.try_recv();
 
                     match cap {
                         Ok(cap) => {
-                            println!(
-                                "Received the cap for the VDF! Generating proof with {:?}",
-                                cap
-                            );
-                            let proof = self.generate_proof(VDFResult { result, iterations }, cap);
-                            res_channel.send(Ok(proof));
+                            // Cap received
+                            println!("Received the cap {:?}, generating proof.", cap);
+
+                            // Check for primality
+                            if !is_prime(cap) {
+                                // Generate proof on given cap
+                                let proof =
+                                    self.generate_proof(VDFResult { result, iterations }, cap);
+
+                                // Send proof to caller
+                                if res_channel.send(Ok(proof)).is_err() {
+                                    println!("Failed to send the proof to caller!");
+                                }
+                            } else {
+                                // Received cap was not a prime, send error to caller
+                                if res_channel.send(Err(InvalidCapError)).is_err() {
+                                    println!("Received cap was not a prime!");
+                                }
+                            }
                             break;
                         }
                         Err(_) => {
