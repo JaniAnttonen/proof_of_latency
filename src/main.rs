@@ -34,23 +34,43 @@ fn main() {
     let sleep_time = time::Duration::from_millis(900);
     thread::sleep(sleep_time);
 
-    // Send received signature from the other peer, "capping off" the
-    vdf_worker.send(cap).unwrap();
+    // Send received signature from the other peer, "capping off" the VDF
+    match vdf_worker.send(cap) {
+        Ok(_) => false,
+        Err(_) => true,
+    };
 
     // Wait for response from VDF worker
-    let response = worker_output.recv().unwrap().unwrap();
+    let response: Option<vdf::VDFProof> = match worker_output.recv() {
+        Ok(res) => match res {
+                Ok(proof) => {
+                    println!("VDF ran for {:?} times!", proof.output.iterations);
+                    println!("The output being {:?}", proof.output.result);
+                    Some(proof)
+                },
+                Err(_) => None,
+        },
+        Err(err) => {
+            println!("Error when receiving response from VDF worker: {:?}", err);
+            None
+        }
+    };
 
-    println!("VDF ran for {:?} times!", response.output.iterations);
-    println!("The output being {:?}", response.output.result);
+    match response {
+        Some(proof) => {
+            // Verify the proof
+            let is_ok = proof.verify();
 
-    // Verify the proof
-    let is_ok = response.verify();
-
-    if is_ok {
-        println!("The VDF is correct!")
-    } else {
-        println!("The VDF couldn't be verified!")
-    }
+            if is_ok {
+                println!("The VDF is correct!")
+            } else {
+                println!("The VDF couldn't be verified!")
+            }
+        },
+        None => {
+            println!("The VDF is not correct, there was a problem generating the proof");
+        }
+    };
 
     //p2p::run().unwrap();
 }
