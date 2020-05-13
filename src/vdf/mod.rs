@@ -73,11 +73,7 @@ impl VDFProof {
     }
     pub fn abs_difference(&self, other: VDFProof) -> u128 {
         let ours_is_larger = self.output > other.output;
-        if ours_is_larger {
-            self.output.iterations - other.output.iterations
-        } else {
-            other.output.iterations - self.output.iterations
-        }
+        if ours_is_larger { self.output.iterations - other.output.iterations } else { other.output.iterations - self.output.iterations }
     }
 }
 
@@ -125,6 +121,7 @@ impl VDF {
             proof %= &self.rsa_mod;
         }
 
+
         VDFProof {
             rsa_mod: self.rsa_mod.clone(),
             seed: self.seed.clone(),
@@ -156,9 +153,10 @@ impl VDF {
                         res_channel.send(Err(InvalidCapError));
                         break;
                     }
-                    println!("FSAFSHA");
-                    println!("{:?}", self_cap);
+
                     let proof = self.generate_proof(VDFResult { result, iterations }, self_cap);
+                    
+                    println!("Proof: {:?}", proof);
                     res_channel.send(Ok(proof));
                     break;
                 }
