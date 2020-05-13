@@ -31,24 +31,25 @@ fn main() {
     let (vdf_worker, worker_output) = our_vdf.run_vdf_worker();
 
     // Sleep for 300 milliseconds to simulate latency overseas
-    let sleep_time = time::Duration::from_millis(9000);
+    let sleep_time = time::Duration::from_millis(50);
     thread::sleep(sleep_time);
 
     // Send received signature from the other peer, "capping off" the VDF
-    match vdf_worker.send(cap) {
-        Ok(_) => false,
-        Err(_) => true,
+    if vdf_worker.send(cap).is_err() {
+        println!(
+            "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
+        );
     };
 
     // Wait for response from VDF worker
     let response: Option<vdf::VDFProof> = match worker_output.recv() {
         Ok(res) => match res {
-                Ok(proof) => {
-                    println!("VDF ran for {:?} times!", proof.output.iterations);
-                    println!("The output being {:?}", proof.output.result);
-                    Some(proof)
-                },
-                Err(_) => None,
+            Ok(proof) => {
+                println!("VDF ran for {:?} times!", proof.output.iterations);
+                println!("The output being {:?}", proof.output.result);
+                Some(proof)
+            }
+            Err(_) => None,
         },
         Err(err) => {
             println!("Error when receiving response from VDF worker: {:?}", err);
@@ -66,7 +67,7 @@ fn main() {
             } else {
                 println!("The VDF couldn't be verified!")
             }
-        },
+        }
         None => {
             println!("The VDF is not correct, there was a problem generating the proof");
         }

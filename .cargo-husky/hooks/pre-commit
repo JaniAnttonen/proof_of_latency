@@ -4,5 +4,3 @@ set -e
 
 echo '+cargo fmt'
 cargo fmt
-echo '+cargo clippy --all -- -D warnings'
-cargo clippy --all -- -D warnings
