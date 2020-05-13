@@ -159,22 +159,22 @@ impl VDF {
                     println!("Proof: {:?}", proof);
                     res_channel.send(Ok(proof));
                     break;
-                }
+                } else {
+                    let cap = rx.try_recv();
 
-                let cap = rx.try_recv();
-
-                match cap {
-                    Ok(cap) => {
-                        println!(
-                            "Received the cap for the VDF! Generating proof with {:?}",
-                            cap
-                        );
-                        let proof = self.generate_proof(VDFResult { result, iterations }, cap);
-                        res_channel.send(Ok(proof));
-                        break;
-                    }
-                    Err(_) => {
-                        continue;
+                    match cap {
+                        Ok(cap) => {
+                            println!(
+                                "Received the cap for the VDF! Generating proof with {:?}",
+                                cap
+                            );
+                            let proof = self.generate_proof(VDFResult { result, iterations }, cap);
+                            res_channel.send(Ok(proof));
+                            break;
+                        }
+                        Err(_) => {
+                            continue;
+                        }
                     }
                 }
             }
