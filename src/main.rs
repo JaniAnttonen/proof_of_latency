@@ -31,7 +31,7 @@ fn main() {
     let (vdf_worker, worker_output) = our_vdf.run_vdf_worker();
 
     // Sleep for 300 milliseconds to simulate latency overseas
-    let sleep_time = time::Duration::from_millis(900);
+    let sleep_time = time::Duration::from_millis(9000);
     thread::sleep(sleep_time);
 
     // Send received signature from the other peer, "capping off" the VDF
