@@ -5,6 +5,7 @@ use std::error::Error;
 use std::fmt;
 use ramp::Int;
 use primal::{is_prime};
+use std::sync::Arc;
 
 pub mod util;
 
@@ -83,7 +84,7 @@ impl VDFProof {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct VDF {
     pub rsa_mod: Int,
     pub seed: Int,
@@ -95,19 +96,18 @@ impl VDF {
     pub fn new(rsa_mod: Int, seed: Int) -> VDF {
         VDF{rsa_mod, seed, upper_bound: 0, cap: 0}
     }
-    pub fn estimate_upper_bound<'a>(&'a mut self, ms_bound: u64) -> &'a mut VDF { 
-        let rsa_mod = util::get_prime().into();
-        let seed = util::hash(&format!("upper bound test"), &rsa_mod);
-        let cap: u64 = util::get_prime().into();
-        let (vdf_worker, worker_output) = self.run_vdf_worker();
+    pub fn estimate_upper_bound(self, ms_bound: u64) -> VDF { 
+        let cap: u64 = util::get_prime();
+        let (vdf_worker, worker_output) = self.clone().run_vdf_worker();
 
         let sleep_time = time::Duration::from_millis(ms_bound);
         thread::sleep(sleep_time);
         vdf_worker.send(cap).unwrap();
         let response = worker_output.recv().unwrap().unwrap();
-        
-        self.upper_bound = response.output.iterations;
-        self
+      
+        let mut vdf: VDF = self.clone();
+        vdf.upper_bound = response.output.iterations;
+        vdf
     }
     fn generate_proof(&self, result: VDFResult, cap: u64) -> VDFProof {
         let mut proof = Int::one();
@@ -127,7 +127,7 @@ impl VDF {
     pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (tx, rx) = channel();
         let (res_channel, receiver) = channel();
-
+        
         thread::spawn(move || {
             let mut result = self.seed.clone();
             let mut iterations: u128 = 0;
