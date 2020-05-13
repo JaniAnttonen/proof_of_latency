@@ -105,7 +105,7 @@ impl VDF {
         vdf_worker.send(cap).unwrap();
         let response = worker_output.recv().unwrap().unwrap();
       
-        let mut vdf: VDF = self.clone();
+        let mut vdf: VDF = self;
         vdf.upper_bound = response.output.iterations;
         vdf
     }
