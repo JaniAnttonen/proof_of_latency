@@ -1,7 +1,3 @@
-struct ProofOfLatency {
+struct ProofOfLatency {}
 
-}
-
-impl ProofOfLatency {
-
-}
+impl ProofOfLatency {}

@@ -1,7 +1,7 @@
+use primal;
 use ramp::Int;
 use rand_core::RngCore;
 use sha3::{Digest, Sha3_512};
-use primal;
 
 /// Modular exponentiation
 pub fn pow_mod(b: u128, e: u128, n: u128) -> u128 {
@@ -33,7 +33,6 @@ pub fn hash(s: &str, rsa_mod: &Int) -> Int {
     }
     ans % rsa_mod
 }
-
 
 pub fn get_prime() -> u64 {
     let mut rng = rand::thread_rng();
