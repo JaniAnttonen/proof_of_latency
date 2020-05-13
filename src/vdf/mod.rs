@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 use ramp::Int;
-use std::convert::TryInto;
 use primal::{is_prime};
 
 pub mod util;
@@ -84,7 +83,7 @@ impl VDFProof {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct VDF {
     pub rsa_mod: Int,
     pub seed: Int,
@@ -93,15 +92,14 @@ pub struct VDF {
 }
 
 impl VDF {
-    pub fn new(rsa_mod: Int, seed: Int) -> Self {
+    pub fn new(rsa_mod: Int, seed: Int) -> VDF {
         VDF{rsa_mod, seed, upper_bound: 0, cap: 0}
     }
-    pub fn estimate_upper_bound(mut self, ms_bound: u64) -> Self { 
+    pub fn estimate_upper_bound<'a>(&'a mut self, ms_bound: u64) -> &'a mut VDF { 
         let rsa_mod = util::get_prime().into();
         let seed = util::hash(&format!("upper bound test"), &rsa_mod);
-        let instance = VDF::new(rsa_mod, seed);
         let cap: u64 = util::get_prime().into();
-        let (vdf_worker, worker_output) = instance.run_vdf_worker();
+        let (vdf_worker, worker_output) = self.run_vdf_worker();
 
         let sleep_time = time::Duration::from_millis(ms_bound);
         thread::sleep(sleep_time);
@@ -145,12 +143,13 @@ impl VDF {
                     if self_cap == 0 {
                         self_cap = util::get_prime(); 
                     }
-                    if !is_prime(self_cap) {
+                    else if !is_prime(self_cap) {
                         println!("{:?}", self_cap);
                         res_channel.send(Err(InvalidCapError));
                         break;
                     }
-
+                    println!("FSAFSHA");
+                    println!("{:?}", self_cap);
                     let proof = self.generate_proof(VDFResult{result, iterations}, self_cap);
                     res_channel.send(Ok(proof));
                     break;

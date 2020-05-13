@@ -20,7 +20,7 @@ fn main() {
     let seed = vdf::util::hash(&format!("Beep boop beep"), &rsa_mod);
 
     // Create VDF, estimate upper bound for 5 seconds
-    let our_vdf = vdf::VDF::new(rsa_mod, seed).estimate_upper_bound(5000);
+    let our_vdf = vdf::VDF::new(rsa_mod, seed).estimate_upper_bound(100);
     
     // OH YES, it's a random prime that gets used in the proof and verification. This has to be
     // sent from another peer and this actually is the thing that ends the calculation and
@@ -31,7 +31,7 @@ fn main() {
     let (vdf_worker, worker_output) = our_vdf.run_vdf_worker();
 
     // Sleep for 300 milliseconds to simulate latency overseas
-    let sleep_time = time::Duration::from_millis(300);
+    let sleep_time = time::Duration::from_millis(3000);
     thread::sleep(sleep_time);
 
     // Send received signature from the other peer, "capping off" the 
