@@ -67,22 +67,17 @@ impl VDFProof {
         }
         let r = util::pow_mod(2, self.output.iterations, self.cap.into());
         self.output.result
-            == (self.proof.pow_mod(&Int::from(cap_int), &self.rsa_mod)
+            == (self.proof.pow_mod(&cap_int, &self.rsa_mod)
                 * self.seed.pow_mod(&Int::from(r), &self.rsa_mod))
                 % &self.rsa_mod
     }
     pub fn abs_difference(&self, other: VDFProof) -> u128 {
-        let comparison = self.output > other.output;
-        let diff: u128;
-        match comparison {
-            true => {
-                diff = self.output.iterations - other.output.iterations;
-            }
-            false => {
-                diff = other.output.iterations - self.output.iterations;
-            }
+        let ours_is_larger = self.output > other.output;
+        if ours_is_larger {
+            self.output.iterations - other.output.iterations
+        } else {
+            other.output.iterations - self.output.iterations
         }
-        diff
     }
 }
 
@@ -130,13 +125,13 @@ impl VDF {
             proof %= &self.rsa_mod;
         }
 
-        return VDFProof {
+        VDFProof {
             rsa_mod: self.rsa_mod.clone(),
             seed: self.seed.clone(),
             output: result,
             cap,
             proof,
-        };
+        }
     }
     pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (tx, rx) = channel();

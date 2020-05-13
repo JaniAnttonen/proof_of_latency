@@ -1,4 +1,4 @@
-use primal;
+use primal::is_prime;
 use ramp::Int;
 use rand_core::RngCore;
 use sha3::{Digest, Sha3_512};
@@ -38,8 +38,8 @@ pub fn get_prime() -> u64 {
     let mut rng = rand::thread_rng();
     let mut l: u64;
     loop {
-        l = rng.next_u64().into();
-        if primal::is_prime(l) {
+        l = rng.next_u64();
+        if is_prime(l) {
             break;
         }
     }
