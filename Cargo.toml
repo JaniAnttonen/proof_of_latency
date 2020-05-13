@@ -16,4 +16,5 @@ primal = "0.2"
 
 [dev-dependencies.cargo-husky]
 version = "1"
-features = ["precommit-hook", "run-cargo-fmt", "run-cargo-test", "run-cargo-clippy"]
+default-features = false
+features = ["user-hooks"]
