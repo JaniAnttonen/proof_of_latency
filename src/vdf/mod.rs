@@ -8,6 +8,7 @@ use std::{thread, time};
 
 pub mod util;
 
+/// InvalidCapError is returned when a non-prime cap is received in the vdf_worker
 #[derive(Debug)]
 pub struct InvalidCapError;
 
@@ -23,12 +24,14 @@ impl Error for InvalidCapError {
     }
 }
 
+/// The end result of the VDF which we still need to prove
 #[derive(Debug)]
 pub struct VDFResult {
     pub result: Int,
     pub iterations: u128,
 }
 
+/// Traits that make calculating differences between VDFResults easier
 impl Ord for VDFResult {
     fn cmp(&self, other: &Self) -> Ordering {
         self.iterations.cmp(&other.iterations)
@@ -49,6 +52,7 @@ impl PartialEq for VDFResult {
 
 impl Eq for VDFResult {}
 
+/// Proof of an already calculated VDF that gets passed around between peers
 #[derive(Debug)]
 pub struct VDFProof {
     pub rsa_mod: Int,
@@ -59,6 +63,7 @@ pub struct VDFProof {
 }
 
 impl VDFProof {
+    /// A public function that a receiver can use to verify the correctness of the VDFProof
     pub fn verify(&self) -> bool {
         let cap_int: Int = Int::from(self.cap);
         // Check first that the result isn't larger than the RSA base
@@ -71,6 +76,8 @@ impl VDFProof {
                 * self.seed.pow_mod(&Int::from(r), &self.rsa_mod))
                 % &self.rsa_mod
     }
+
+    /// Helper function for calculating the difference in iterations between two VDFProofs
     pub fn abs_difference(&self, other: VDFProof) -> u128 {
         let ours_is_larger = self.output > other.output;
         if ours_is_larger {
@@ -81,6 +88,7 @@ impl VDFProof {
     }
 }
 
+/// VDF is an options struct for calculating VDFProofs
 #[derive(Debug, Clone)]
 pub struct VDF {
     pub rsa_mod: Int,
@@ -90,6 +98,7 @@ pub struct VDF {
 }
 
 impl VDF {
+    /// VDF builder with default options. Can be chained with estimate_upper_bound
     pub fn new(rsa_mod: Int, seed: Int) -> VDF {
         VDF {
             rsa_mod,
@@ -99,6 +108,8 @@ impl VDF {
         }
     }
 
+    /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
+    /// millisecond threshold.
     pub fn estimate_upper_bound(self, ms_bound: u64) -> VDF {
         let cap: u64 = util::get_prime();
         let (vdf_worker, worker_output) = self.clone().run_vdf_worker();
@@ -113,6 +124,7 @@ impl VDF {
         vdf
     }
 
+    /// Returns a VDFProof based on a VDFResult
     fn generate_proof(&self, result: VDFResult, cap: u64) -> VDFProof {
         let mut proof = Int::one();
         let mut r = Int::one();
@@ -136,6 +148,8 @@ impl VDF {
         }
     }
 
+    /// A worker that does the actual calculation in a VDF. Returns a VDFProof based on initial
+    /// parameters in the VDF.
     pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (tx, rx) = channel();
         let (res_channel, receiver) = channel();
@@ -175,7 +189,7 @@ impl VDF {
                     }
                     break;
                 } else {
-                    // Try receiving cap from caller on each iteration
+                    // Try receiving a cap from caller on each iteration
                     let cap = rx.try_recv();
 
                     match cap {
