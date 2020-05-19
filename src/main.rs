@@ -2,7 +2,7 @@ use ramp::Int;
 use std::str::FromStr;
 use std::{thread, time};
 
-use proof_of_latency::{RSA_2048, ProofOfLatency};
+use proof_of_latency::{ProofOfLatency, RSA_2048};
 pub mod vdf;
 //pub mod p2p;
 
@@ -44,16 +44,17 @@ fn main() {
     let success = match worker_output.recv() {
         Ok(res) => match res {
             Ok(proof) => {
-                println!("VDF ran for {:?} times!\nThe output being {:?}",
-                proof.output.iterations, proof.output.result);
+                println!(
+                    "VDF ran for {:?} times!\nThe output being {:?}",
+                    proof.output.iterations, proof.output.result
+                );
                 if proof.verify() {
                     println!("The VDF is correct!");
-                }
-                else {
+                } else {
                     println!("The VDF couldn't be verified!");
                 }
                 true
-            },
+            }
             Err(_) => false,
         },
         Err(err) => {

@@ -4,7 +4,6 @@ pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403
 
 pub struct ProofOfLatency {
     N: Int,
-    g: 
 }
 
 impl ProofOfLatency {}

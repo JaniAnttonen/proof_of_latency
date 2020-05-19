@@ -117,7 +117,7 @@ impl VDF {
         let sleep_time = time::Duration::from_millis(ms_bound);
         thread::sleep(sleep_time);
         vdf_worker.send(cap).unwrap();
-        
+
         let response: Option<VDFProof> = match worker_output.recv() {
             Ok(res) => match res {
                 Ok(proof) => {
@@ -132,13 +132,13 @@ impl VDF {
                 None
             }
         };
-      
+
         let mut vdf: VDF = self;
-        
+
         match response {
             Some(proof) => {
                 vdf.upper_bound = proof.output.iterations;
-            },
+            }
             None => {
                 vdf.upper_bound = 50000;
             }
