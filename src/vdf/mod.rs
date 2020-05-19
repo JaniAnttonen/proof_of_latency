@@ -117,10 +117,32 @@ impl VDF {
         let sleep_time = time::Duration::from_millis(ms_bound);
         thread::sleep(sleep_time);
         vdf_worker.send(cap).unwrap();
-        let response = worker_output.recv().unwrap().unwrap();
-
+        
+        let response: Option<VDFProof> = match worker_output.recv() {
+            Ok(res) => match res {
+                Ok(proof) => {
+                    println!("VDF ran for {:?} times!", proof.output.iterations);
+                    println!("The output being {:?}", proof.output.result);
+                    Some(proof)
+                }
+                Err(_) => None,
+            },
+            Err(err) => {
+                println!("Error when receiving response from VDF worker: {:?}", err);
+                None
+            }
+        };
+      
         let mut vdf: VDF = self;
-        vdf.upper_bound = response.output.iterations;
+        
+        match response {
+            Some(proof) => {
+                vdf.upper_bound = proof.output.iterations;
+            },
+            None => {
+                vdf.upper_bound = 50000;
+            }
+        }
         vdf
     }
 
