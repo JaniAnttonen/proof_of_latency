@@ -8,6 +8,7 @@ pub mod vdf;
 
 // rsa_mod = N, root = g
 fn main() {
+    let pol = ProofOfLatency::new("beep boop beep");
     // This parameter just needs to provide a group of unknown order, thus a large RSA number is
     // required. N in the paper.
     let rsa_mod = Int::from_str(RSA_2048).unwrap();
