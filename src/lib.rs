@@ -21,6 +21,8 @@ impl ProofOfLatency {
         // repeatedly for T times. Used to verify that the calculations started here. That's why the
         // setup needs to generate a random starting point that couldn't have been forged beforehand.
         let root = vdf::util::hash(secret, &rsa_mod);
+
+        let our_vdf = vdf::VDF::new(rsa_mod.clone(), root.clone()).estimate_upper_bound(5000);
         ProofOfLatency { rsa_mod, root }
     }
 }
