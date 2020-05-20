@@ -1,5 +1,8 @@
+use env_logger;
 use ramp::Int;
+use std::error::Error;
 use std::str::FromStr;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{thread, time};
 
 mod vdf;
@@ -8,57 +11,65 @@ pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403
 
 pub enum STATE {}
 
-// rsa_mod = N, root = g
+// divider = N, root = g
 pub struct ProofOfLatency {
-    pub rsa_mod: Int,
-    pub root: Int,
-    vdf: vdf::VDF,
-    pub our_proof: Option<vdf::VDFProof>,
-    pub their_proof: Option<vdf::VDFProof>,
+    pub divider: Option<Int>,
+    pub root: Option<Int>,
+    pub lower_bound: Option<u128>,
+    vdf: Option<vdf::VDF>,
+    capper: Option<Sender<u64>>,
+    receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
+    pub prover_result: Option<vdf::VDFProof>,
+    pub verifier_result: Option<vdf::VDFProof>,
 }
 
 impl ProofOfLatency {
-    pub fn new(secret: &str) -> ProofOfLatency {
-        let rsa_mod = Int::from_str(RSA_2048).unwrap();
-
-        // Security parameter, g in the paper. This needs to be replaced with a key that's decided
-        // between two peers with Diffie-Hellman. The starting point for the VDF that gets squared
-        // repeatedly for T times. Used to verify that the calculations started here. That's why the
-        // setup needs to generate a random starting point that couldn't have been forged beforehand.
-        let root = vdf::util::hash(secret, &rsa_mod);
-
-        let our_vdf = vdf::VDF::new(rsa_mod.clone(), root.clone()).estimate_upper_bound(5000);
-
+    pub fn new() -> ProofOfLatency {
         ProofOfLatency {
-            rsa_mod,
-            root,
-            vdf: our_vdf,
-            our_proof: Option::default(),
-            their_proof: Option::default(),
+            divider: None,
+            root: None,
+            lower_bound: None,
+            vdf: None,
+            capper: None,
+            receiver: None,
+            prover_result: None,
+            verifier_result: None,
         }
     }
-    pub fn run(mut self) {
+
+    pub fn set_params(mut self, divider: Int, root: Int, lower_bound: u128) {
+        self.divider = Some(divider);
+        self.root = Some(root);
+        self.lower_bound = Some(lower_bound);
+        self.vdf = Some(vdf::VDF::new(divider.clone(), root.clone()));
+    }
+
+    /// TODO: Add a Result<> as a return type, with an error VDFStartError
+    pub fn start(mut self) {
         // OH YES, it's a random prime that gets used in the proof and verification. This has to be
         // sent from another peer and this actually is the thing that ends the calculation and
         // facilitates the proof.
         let cap: u64 = vdf::util::get_prime();
 
         // Run the VDF, returning connection channels to push to and receive data from
-        let (vdf_worker, worker_output) = self.vdf.run_vdf_worker();
+        let (capper, receiver) = self.vdf.unwrap().run_vdf_worker();
 
-        // Sleep for 300 milliseconds to simulate latency overseas
-        let sleep_time = time::Duration::from_millis(300);
-        thread::sleep(sleep_time);
+        // TODO: THIS IS STUPID, HAVE CAPPER AND RECEIVER BE ATTRIBUTES OF THE VDF, OTHERWISE THEIR
+        // LIFETIME IS WAAAAY TOO LONG!
+        self.capper = Some(capper);
+        self.receiver = Some(receiver);
+    }
 
+    pub fn receive(mut self, their_proof: vdf::VDFProof) -> Option<error::Error> {
         // Send received signature from the other peer, "capping off" the VDF
-        if vdf_worker.send(cap).is_err() {
+        if self.capper.unwrap().send(their_proof.cap).is_err() {
             println!(
                 "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
             );
         };
 
         // Wait for response from VDF worker
-        let success = match worker_output.recv() {
+        let success = match self.receiver.unwrap().recv() {
             Ok(res) => match res {
                 Ok(proof) => {
                     println!(
@@ -79,10 +90,6 @@ impl ProofOfLatency {
                 println!("Error when receiving response from VDF worker: {:?}", err);
                 false
             }
-        };
-
-        if !success {
-            println!("The VDF is not correct, there was a problem generating the proof");
         };
     }
 }
