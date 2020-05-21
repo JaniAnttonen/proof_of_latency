@@ -14,7 +14,7 @@ fn main() {
     // setup needs to generate a random starting point that couldn't have been forged beforehand.
     let root = vdf::util::hash("beep boop beep", &divider);
 
-    pol.set_params(divider, root, 5317853); 
+    pol.set_params(divider, root, 5317853);
 
     pol.start();
     //p2p::run().unwrap();

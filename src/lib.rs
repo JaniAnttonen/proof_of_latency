@@ -12,19 +12,19 @@ pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403
 pub enum STATE {}
 
 // divider = N, root = g
-pub struct ProofOfLatency {
+pub struct ProofOfLatency<'a> {
     pub divider: Option<Int>,
     pub root: Option<Int>,
     pub lower_bound: Option<u128>,
-    vdf: Option<vdf::VDF>,
+    vdf: Option<vdf::VDF<'a>>,
     capper: Option<Sender<u64>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
     pub prover_result: Option<vdf::VDFProof>,
     pub verifier_result: Option<vdf::VDFProof>,
 }
 
-impl ProofOfLatency {
-    pub fn new() -> ProofOfLatency {
+impl<'a> ProofOfLatency<'a> {
+    pub fn new() -> Self {
         ProofOfLatency {
             divider: None,
             root: None,
@@ -41,7 +41,7 @@ impl ProofOfLatency {
         self.divider = Some(divider);
         self.root = Some(root);
         self.lower_bound = Some(lower_bound);
-        self.vdf = Some(vdf::VDF::new(divider.clone(), root.clone()));
+        self.vdf = Some(vdf::VDF::new(divider.clone(), root.clone(), lower_bound.clone()));
     }
 
     /// TODO: Add a Result<> as a return type, with an error VDFStartError
@@ -60,7 +60,7 @@ impl ProofOfLatency {
         self.receiver = Some(receiver);
     }
 
-    pub fn receive(mut self, their_proof: vdf::VDFProof) -> Option<error::Error> {
+    pub fn receive(mut self, their_proof: vdf::VDFProof) {
         // Send received signature from the other peer, "capping off" the VDF
         if self.capper.unwrap().send(their_proof.cap).is_err() {
             println!(
@@ -78,7 +78,7 @@ impl ProofOfLatency {
                     );
                     if proof.verify() {
                         println!("The VDF is correct!");
-                        self.our_proof = Some(proof);
+                        self.prover_result = Some(proof);
                     } else {
                         println!("The VDF couldn't be verified!");
                     }
