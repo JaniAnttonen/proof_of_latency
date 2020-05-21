@@ -95,6 +95,8 @@ pub struct VDF {
     pub seed: Int,
     pub upper_bound: u128,
     pub cap: u64,
+    capper: Option<Sender<u64>>,
+    receiver: Option<Receiver<Result<VDFProof, InvalidCapError>>>, 
 }
 
 impl VDF {
@@ -105,12 +107,14 @@ impl VDF {
             seed,
             upper_bound: 0,
             cap: 0,
+            capper: None,
+            receiver: None,
         }
     }
 
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
     /// millisecond threshold.
-    pub fn estimate_upper_bound(self, ms_bound: u64) -> VDF {
+    pub fn estimate_upper_bound(mut self, ms_bound: u64) -> Self {
         let cap: u64 = util::get_prime();
         let (vdf_worker, worker_output) = self.clone().run_vdf_worker();
 
@@ -118,32 +122,19 @@ impl VDF {
         thread::sleep(sleep_time);
         vdf_worker.send(cap).unwrap();
 
-        let response: Option<VDFProof> = match worker_output.recv() {
-            Ok(res) => match res {
-                Ok(proof) => {
-                    println!("VDF ran for {:?} times!", proof.output.iterations);
-                    println!("The output being {:?}", proof.output.result);
-                    Some(proof)
-                }
-                Err(_) => None,
-            },
-            Err(err) => {
-                println!("Error when receiving response from VDF worker: {:?}", err);
-                None
+        if let Ok(res) = worker_output.recv() {
+            if let Ok(proof) = res {
+                println!("VDF ran for {:?} times!", proof.output.iterations);
+                println!("The output being {:?}", proof.output.result);
+                self.upper_bound = proof.output.iterations;
+            } else {
+                self.upper_bound = 500000;
             }
-        };
-
-        let mut vdf: VDF = self;
-
-        match response {
-            Some(proof) => {
-                vdf.upper_bound = proof.output.iterations;
-            }
-            None => {
-                vdf.upper_bound = 50000;
-            }
+        } else {
+            self.upper_bound = 500000;
         }
-        vdf
+
+        self
     }
 
     /// Returns a VDFProof based on a VDFResult
