@@ -126,7 +126,10 @@ impl<'run> VDF<'run> {
 
         if let Ok(res) = worker_output.recv() {
             if let Ok(proof) = res {
-                println!("VDF ran for {:?} times!\nThe output being {:?}", proof.output.iterations, proof.output.result);
+                println!(
+                    "VDF ran for {:?} times!\nThe output being {:?}",
+                    proof.output.iterations, proof.output.result
+                );
                 self.upper_bound = proof.output.iterations;
             }
         }
@@ -206,8 +209,7 @@ impl<'run> VDF<'run> {
                         // Check for primality
                         if !is_prime(cap) {
                             // Generate proof on given cap
-                            let proof =
-                                self.generate_proof(VDFResult { result, iterations }, cap);
+                            let proof = self.generate_proof(VDFResult { result, iterations }, cap);
 
                             // Send proof to caller
                             if res_channel.send(Ok(proof)).is_err() {

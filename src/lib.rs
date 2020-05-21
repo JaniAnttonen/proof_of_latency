@@ -41,7 +41,11 @@ impl<'a> ProofOfLatency<'a> {
         self.divider = Some(divider);
         self.root = Some(root);
         self.lower_bound = Some(lower_bound);
-        self.vdf = Some(vdf::VDF::new(divider.clone(), root.clone(), lower_bound.clone()));
+        self.vdf = Some(vdf::VDF::new(
+            divider.clone(),
+            root.clone(),
+            lower_bound.clone(),
+        ));
     }
 
     /// TODO: Add a Result<> as a return type, with an error VDFStartError
