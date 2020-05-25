@@ -3,7 +3,7 @@ extern crate log;
 use ramp::Int;
 use std::sync::mpsc::{Receiver, Sender};
 
-mod vdf;
+pub mod vdf;
 
 pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
@@ -14,7 +14,7 @@ pub enum STATE {}
 pub struct ProofOfLatency {
     pub divider: Option<Int>,
     pub root: Option<Int>,
-    pub lower_bound: Option<u128>,
+    pub upper_bound: Option<usize>,
     vdf: Option<vdf::VDF>,
     capper: Option<Sender<u64>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
@@ -27,7 +27,7 @@ impl Default for ProofOfLatency {
         Self {
             divider: None,
             root: None,
-            lower_bound: None,
+            upper_bound: None,
             vdf: None,
             capper: None,
             receiver: None,
@@ -38,16 +38,13 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn set_params(&mut self, divider: Int, root: Int, lower_bound: u128) {
+    pub fn set_params(&mut self, divider: Int, root: Int, upper_bound: usize) {
         let root_hashed = vdf::util::hash(&root.to_string(), &divider);
-        self.vdf = Some(vdf::VDF::new(
-            divider.clone(),
-            root_hashed.clone(),
-            lower_bound,
-        ));
+        let prover_vdf = vdf::VDF::new(divider.clone(), root_hashed.clone(), upper_bound);
+        self.vdf = Some(prover_vdf);
         self.divider = Some(divider);
         self.root = Some(root_hashed);
-        self.lower_bound = Some(lower_bound);
+        self.upper_bound = Some(upper_bound);
     }
 
     /// TODO: Add a Result<> as a return type, with an error VDFStartError
@@ -57,6 +54,7 @@ impl ProofOfLatency {
         // facilitates the proof.
         //let cap: u64 = vdf::util::get_prime();
 
+        // THIS IS THE REASONINGS WHY DOES NOT WORK LULZ
         let (capper, receiver) = self.vdf.clone().unwrap().run_vdf_worker();
 
         self.capper = Some(capper);
@@ -80,7 +78,18 @@ impl ProofOfLatency {
                         proof.output.iterations, proof.output.result
                     );
                     if proof.verify() {
-                        info!("The VDF is correct!");
+                        let iter_prover: usize = proof.output.iterations;
+                        let iter_verifier: usize = their_proof.output.iterations;
+                        let difference: Int = if iter_prover > iter_verifier {
+                            Int::from(iter_prover - iter_verifier)
+                        } else {
+                            Int::from(iter_verifier - iter_prover)
+                        };
+                        info!(
+                            "The VDF is correct! Latency between peers {:?} iterations.",
+                            difference
+                        );
+
                         self.prover_result = Some(proof);
                         self.verifier_result = Some(their_proof);
                     } else {

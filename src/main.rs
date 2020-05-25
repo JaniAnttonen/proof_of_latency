@@ -1,10 +1,7 @@
-#[macro_use]
 extern crate log;
-use proof_of_latency::ProofOfLatency;
+use proof_of_latency::{vdf, ProofOfLatency};
 use ramp::Int;
 use std::str::FromStr;
-
-pub mod vdf;
 
 fn main() {
     env_logger::init();
@@ -22,10 +19,19 @@ fn main() {
 
     let diffiehellman = prime1 * prime2;
 
-    pol.set_params(divider, diffiehellman, 50000);
+    pol.set_params(divider.clone(), diffiehellman.clone(), usize::MAX);
+    let verifiers_vdf = vdf::VDF::new(divider, diffiehellman, 80000);
+
+    //pol.estimate_upper_bound(5000);
 
     pol.start();
+    let (_, receiver) = verifiers_vdf.run_vdf_worker();
+    if let Ok(res) = receiver.recv() {
+        if let Ok(proof) = res {
+            pol.receive(proof);
+        }
+    }
 
-    info!("{:?}", pol);
+    //info!("{:?}", pol);
     //p2p::run().unwrap();
 }

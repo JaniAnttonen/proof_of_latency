@@ -4,7 +4,7 @@ use rand_core::RngCore;
 use sha3::{Digest, Sha3_512};
 
 /// Modular exponentiation
-pub fn pow_mod(b: u128, e: u128, n: u128) -> u128 {
+pub fn pow_mod(b: u128, e: usize, n: u128) -> u128 {
     if n == 1 {
         return 0;
     }
