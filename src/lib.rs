@@ -73,7 +73,7 @@ impl ProofOfLatency {
                                 Int::from(iter_verifier - iter_prover)
                             };
                             info!(
-                                "The VDF is correct! Latency between peers {:?} iterations.",
+                                "Both proofs are correct! Latency between peers was {:?} iterations.",
                                 difference
                             );
 
