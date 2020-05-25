@@ -116,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn iter_diff_works() {
+    fn is_deterministic() {
         let divider = Int::from_str(RSA_2048).unwrap();
         let prime1 = Int::from(vdf::util::get_prime());
         let prime2 = Int::from(vdf::util::get_prime());
