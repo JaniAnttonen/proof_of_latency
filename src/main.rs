@@ -7,7 +7,9 @@ use std::str::FromStr;
 pub mod vdf;
 
 fn main() {
-    let mut pol = ProofOfLatency::new();
+    env_logger::init();
+
+    let mut pol = ProofOfLatency::default();
 
     let divider = Int::from_str(proof_of_latency::RSA_2048).unwrap();
 
@@ -15,9 +17,12 @@ fn main() {
     // between two peers with Diffie-Hellman. The starting point for the VDF that gets squared
     // repeatedly for T times. Used to verify that the calculations started here. That's why the
     // setup needs to generate a random starting point that couldn't have been forged beforehand.
-    let root = vdf::util::hash("beep boop beep", &divider);
+    let prime1 = Int::from(vdf::util::get_prime());
+    let prime2 = Int::from(vdf::util::get_prime());
 
-    pol.set_params(divider, root, 50000);
+    let diffiehellman = prime1 * prime2;
+
+    pol.set_params(divider, diffiehellman, 50000);
 
     pol.start();
 

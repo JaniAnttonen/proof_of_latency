@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate log;
-use env_logger;
 use ramp::Int;
-use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 
 mod vdf;
@@ -24,9 +22,9 @@ pub struct ProofOfLatency {
     pub verifier_result: Option<vdf::VDFProof>,
 }
 
-impl ProofOfLatency {
-    pub fn new() -> Self {
-        ProofOfLatency {
+impl Default for ProofOfLatency {
+    fn default() -> Self {
+        Self {
             divider: None,
             root: None,
             lower_bound: None,
@@ -37,23 +35,29 @@ impl ProofOfLatency {
             verifier_result: None,
         }
     }
+}
 
+impl ProofOfLatency {
     pub fn set_params(&mut self, divider: Int, root: Int, lower_bound: u128) {
-        self.vdf = Some(vdf::VDF::new(divider.clone(), root.clone(), lower_bound));
+        let root_hashed = vdf::util::hash(&root.to_string(), &divider);
+        self.vdf = Some(vdf::VDF::new(
+            divider.clone(),
+            root_hashed.clone(),
+            lower_bound,
+        ));
         self.divider = Some(divider);
-        self.root = Some(root);
+        self.root = Some(root_hashed);
         self.lower_bound = Some(lower_bound);
     }
 
     /// TODO: Add a Result<> as a return type, with an error VDFStartError
     pub fn start(&mut self) {
-        env_logger::init();
         // OH YES, it's a random prime that gets used in the proof and verification. This has to be
         // sent from another peer and this actually is the thing that ends the calculation and
         // facilitates the proof.
         //let cap: u64 = vdf::util::get_prime();
 
-        let (capper, receiver) = self.vdf.unwrap().run_vdf_worker();
+        let (capper, receiver) = self.vdf.clone().unwrap().run_vdf_worker();
 
         self.capper = Some(capper);
         self.receiver = Some(receiver);

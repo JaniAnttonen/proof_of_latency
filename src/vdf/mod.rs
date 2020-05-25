@@ -90,7 +90,7 @@ impl VDFProof {
 
 /// VDF is an options struct for calculating VDFProofs
 #[derive(Debug, Clone)]
-pub struct VDF<'proof, 'run> {
+pub struct VDF {
     pub rsa_mod: Int,
     pub seed: Int,
     pub lower_bound: u128,
@@ -98,11 +98,10 @@ pub struct VDF<'proof, 'run> {
     pub cap: u64,
 }
 
-impl<'proof> VDF {
+impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
     pub fn new(rsa_mod: Int, seed: Int, lower_bound: u128) -> Self {
-        env_logger::init();
-        VDF {
+        Self {
             rsa_mod,
             seed,
             lower_bound,
@@ -166,14 +165,9 @@ impl<'proof> VDF {
 
     /// A worker that does the actual calculation in a VDF. Returns a VDFProof based on initial
     /// parameters in the VDF.
-    pub fn run_vdf_worker<'run>(
-        &self,
-    ) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
-        let (caller_sender, worker_receiver): (Sender<u64>, Receiver<u64>) = channel();
-        let (worker_sender, caller_receiver): (
-            Sender<Result<VDFProof, InvalidCapError>>,
-            Receiver<Result<VDFProof, InvalidCapError>>,
-        ) = channel();
+    pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
+        let (caller_sender, worker_receiver) = channel();
+        let (worker_sender, caller_receiver) = channel();
 
         thread::spawn(move || {
             let mut result = self.seed.clone();
