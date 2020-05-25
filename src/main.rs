@@ -1,12 +1,15 @@
+#[macro_use]
+extern crate log;
 use proof_of_latency::ProofOfLatency;
+use ramp::Int;
+use std::str::FromStr;
+
 pub mod vdf;
-//pub mod p2p;
 
-// rsa_mod = N, root = g
 fn main() {
-    let pol = ProofOfLatency::new();
+    let mut pol = ProofOfLatency::new();
 
-    let divider = Int::from_str(RSA_2048).unwrap();
+    let divider = Int::from_str(proof_of_latency::RSA_2048).unwrap();
 
     // Security parameter, g in the paper. This needs to be replaced with a key that's decided
     // between two peers with Diffie-Hellman. The starting point for the VDF that gets squared
@@ -14,8 +17,10 @@ fn main() {
     // setup needs to generate a random starting point that couldn't have been forged beforehand.
     let root = vdf::util::hash("beep boop beep", &divider);
 
-    pol.set_params(divider, root, 5317853);
+    pol.set_params(divider, root, 50000);
 
     pol.start();
+
+    info!("{:?}", pol);
     //p2p::run().unwrap();
 }

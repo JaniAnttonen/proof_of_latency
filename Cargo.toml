@@ -12,6 +12,7 @@ rand_core = "0.5.1"
 libp2p = "0.18.1" 
 async-std = "1.5.0"
 env_logger = "0.7.1" 
+log = "0.4.8"
 primal = "0.2"
 machine = "0.2"
 

@@ -1831,6 +1831,7 @@ dependencies = [
  "cargo-husky",
  "env_logger",
  "libp2p",
+ "log",
  "machine",
  "primal",
  "ramp",

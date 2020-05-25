@@ -90,49 +90,53 @@ impl VDFProof {
 
 /// VDF is an options struct for calculating VDFProofs
 #[derive(Debug, Clone)]
-pub struct VDF<'run> {
+pub struct VDF<'proof, 'run> {
     pub rsa_mod: Int,
     pub seed: Int,
     pub lower_bound: u128,
     pub upper_bound: u128,
     pub cap: u64,
-    capper: &'run Option<Sender<u64>>,
-    receiver: &'run Option<Receiver<Result<VDFProof, InvalidCapError>>>,
 }
 
-impl<'run> VDF<'run> {
+impl<'proof> VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
     pub fn new(rsa_mod: Int, seed: Int, lower_bound: u128) -> Self {
+        env_logger::init();
         VDF {
             rsa_mod,
             seed,
             lower_bound,
             upper_bound: 500000,
             cap: 0,
-            capper: &None,
-            receiver: &None,
         }
     }
 
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
     /// millisecond threshold.
-    pub fn estimate_upper_bound(mut self, ms_bound: u64) -> Self {
+    pub fn estimate_upper_bound(self, ms_bound: u64) -> Option<u128> {
         let cap: u64 = util::get_prime();
-        let (vdf_worker, worker_output) = self.run_vdf_worker();
+        let (capper, receiver) = self.run_vdf_worker();
 
         let sleep_time = time::Duration::from_millis(ms_bound);
         thread::sleep(sleep_time);
-        vdf_worker.send(cap).unwrap();
+        capper.send(cap).unwrap();
 
-        if let Ok(res) = worker_output.recv() {
+        let mut upper_bound: u128 = 0;
+        if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
-                println!(
-                    "VDF ran for {:?} times!\nThe output being {:?}",
-                    proof.output.iterations, proof.output.result
-                );
-                self.upper_bound = proof.output.iterations;
+                upper_bound = proof.output.iterations;
             }
         }
+
+        if upper_bound > 0 {
+            Some(upper_bound)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_upper_bound(mut self, upper_bound: u128) -> Self {
+        self.upper_bound = upper_bound;
         self
     }
 
@@ -162,9 +166,14 @@ impl<'run> VDF<'run> {
 
     /// A worker that does the actual calculation in a VDF. Returns a VDFProof based on initial
     /// parameters in the VDF.
-    pub fn run_vdf_worker(&self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
-        let (tx, rx) = channel();
-        let (res_channel, receiver) = channel();
+    pub fn run_vdf_worker<'run>(
+        &self,
+    ) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
+        let (caller_sender, worker_receiver): (Sender<u64>, Receiver<u64>) = channel();
+        let (worker_sender, caller_receiver): (
+            Sender<Result<VDFProof, InvalidCapError>>,
+            Receiver<Result<VDFProof, InvalidCapError>>,
+        ) = channel();
 
         thread::spawn(move || {
             let mut result = self.seed.clone();
@@ -175,7 +184,7 @@ impl<'run> VDF<'run> {
 
                 if iterations == self.upper_bound {
                     // Upper bound reached, stops iteration and calculates the proof
-                    println!("Upper bound of {:?} reached, generating proof.", iterations);
+                    debug!("Upper bound of {:?} reached, generating proof.", iterations);
 
                     // Copy pregenerated cap
                     let mut self_cap: u64 = self.cap;
@@ -184,10 +193,8 @@ impl<'run> VDF<'run> {
                     if self_cap == 0 {
                         self_cap = util::get_prime();
                     } else if !is_prime(self_cap) {
-                        if res_channel.send(Err(InvalidCapError)).is_err() {
-                            println!(
-                                "Self-generated cap was not a prime! Check the implementation!"
-                            );
+                        if worker_sender.send(Err(InvalidCapError)).is_err() {
+                            error!("Self-generated cap was not a prime! Check the implementation!");
                         }
                         break;
                     }
@@ -196,15 +203,15 @@ impl<'run> VDF<'run> {
                     let proof = self.generate_proof(VDFResult { result, iterations }, self_cap);
 
                     // Send proof to caller
-                    if res_channel.send(Ok(proof)).is_err() {
-                        println!("Failed to send the proof to caller!");
+                    if worker_sender.send(Ok(proof)).is_err() {
+                        error!("Failed to send the proof to caller!");
                     }
                     break;
                 } else {
                     // Try receiving a cap from caller on each iteration
-                    if let Ok(cap) = rx.try_recv() {
+                    if let Ok(cap) = worker_receiver.try_recv() {
                         // Cap received
-                        println!("Received the cap {:?}, generating proof.", cap);
+                        info!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
                         if !is_prime(cap) {
@@ -212,13 +219,13 @@ impl<'run> VDF<'run> {
                             let proof = self.generate_proof(VDFResult { result, iterations }, cap);
 
                             // Send proof to caller
-                            if res_channel.send(Ok(proof)).is_err() {
-                                println!("Failed to send the proof to caller!");
+                            if worker_sender.send(Ok(proof)).is_err() {
+                                error!("Failed to send the proof to caller!");
                             }
                         } else {
                             // Received cap was not a prime, send error to caller
-                            if res_channel.send(Err(InvalidCapError)).is_err() {
-                                println!("Received cap was not a prime!");
+                            if worker_sender.send(Err(InvalidCapError)).is_err() {
+                                error!("Received cap was not a prime!");
                             }
                         }
                         break;
@@ -229,6 +236,6 @@ impl<'run> VDF<'run> {
             }
         });
 
-        (tx, receiver)
+        (caller_sender, caller_receiver)
     }
 }
