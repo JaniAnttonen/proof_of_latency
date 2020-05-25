@@ -15,7 +15,6 @@ pub struct ProofOfLatency {
     pub divider: Option<Int>,
     pub root: Option<Int>,
     pub upper_bound: Option<usize>,
-    vdf: Option<vdf::VDF>,
     capper: Option<Sender<u64>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
     pub prover_result: Option<vdf::VDFProof>,
@@ -28,7 +27,6 @@ impl Default for ProofOfLatency {
             divider: None,
             root: None,
             upper_bound: None,
-            vdf: None,
             capper: None,
             receiver: None,
             prover_result: None,
@@ -38,67 +36,109 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn set_params(&mut self, divider: Int, root: Int, upper_bound: usize) {
-        let root_hashed = vdf::util::hash(&root.to_string(), &divider);
-        let prover_vdf = vdf::VDF::new(divider.clone(), root_hashed.clone(), upper_bound);
-        self.vdf = Some(prover_vdf);
-        self.divider = Some(divider);
-        self.root = Some(root_hashed);
+    pub fn start(&mut self, divider: Int, root: Int, upper_bound: usize) {
+        self.divider = Some(divider.clone());
+        self.root = Some(root.clone());
         self.upper_bound = Some(upper_bound);
-    }
 
-    /// TODO: Add a Result<> as a return type, with an error VDFStartError
-    pub fn start(&mut self) {
-        // OH YES, it's a random prime that gets used in the proof and verification. This has to be
-        // sent from another peer and this actually is the thing that ends the calculation and
-        // facilitates the proof.
-        //let cap: u64 = vdf::util::get_prime();
-
-        // THIS IS THE REASONINGS WHY DOES NOT WORK LULZ
-        let (capper, receiver) = self.vdf.clone().unwrap().run_vdf_worker();
-
+        let prover_vdf = vdf::VDF::new(divider, root, upper_bound);
+        let (capper, receiver) = prover_vdf.run_vdf_worker();
         self.capper = Some(capper);
         self.receiver = Some(receiver);
     }
 
-    pub fn receive(mut self, their_proof: vdf::VDFProof) {
+    pub fn receive(&mut self, their_proof: vdf::VDFProof) {
         if their_proof.verify() {
             // Send received signature from the other peer, "capping off" the VDF
-            if self.capper.unwrap().send(their_proof.cap).is_err() {
+            if self.capper.as_ref().unwrap().send(their_proof.cap).is_err() {
                 debug!(
                     "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
                 );
             };
 
             // Wait for response from VDF worker
-            if let Ok(res) = self.receiver.unwrap().recv() {
-                if let Ok(proof) = res {
-                    debug!(
-                        "VDF ran for {:?} times!\nThe output being {:?}",
-                        proof.output.iterations, proof.output.result
-                    );
-                    if proof.verify() {
-                        let iter_prover: usize = proof.output.iterations;
-                        let iter_verifier: usize = their_proof.output.iterations;
-                        let difference: Int = if iter_prover > iter_verifier {
-                            Int::from(iter_prover - iter_verifier)
-                        } else {
-                            Int::from(iter_verifier - iter_prover)
-                        };
-                        info!(
-                            "The VDF is correct! Latency between peers {:?} iterations.",
-                            difference
+            loop {
+                if let Ok(res) = self.receiver.as_ref().unwrap().try_recv() {
+                    if let Ok(proof) = res {
+                        debug!(
+                            "VDF ran for {:?} times!\nThe output being {:?}",
+                            proof.output.iterations, proof.output.result
                         );
+                        if proof.verify() {
+                            let iter_prover: usize = proof.output.iterations;
+                            let iter_verifier: usize = their_proof.output.iterations;
+                            let difference: Int = if iter_prover > iter_verifier {
+                                Int::from(iter_prover - iter_verifier)
+                            } else {
+                                Int::from(iter_verifier - iter_prover)
+                            };
+                            info!(
+                                "The VDF is correct! Latency between peers {:?} iterations.",
+                                difference
+                            );
 
-                        self.prover_result = Some(proof);
-                        self.verifier_result = Some(their_proof);
+                            self.prover_result = Some(proof);
+                            self.verifier_result = Some(their_proof);
+                        } else {
+                            error!("The VDF couldn't be verified!");
+                        }
+                        break;
                     } else {
-                        error!("The VDF couldn't be verified!");
+                        continue;
                     }
-                } else {
-                    error!("Error when receiving response from VDF worker");
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn start_modifies_self() {
+        let divider = Int::from_str(RSA_2048).unwrap();
+        let prime1 = Int::from(vdf::util::get_prime());
+        let prime2 = Int::from(vdf::util::get_prime());
+        let diffiehellman = prime1 * prime2;
+
+        let mut pol = ProofOfLatency::default();
+
+        let pol2 = ProofOfLatency::default();
+        pol.start(divider, diffiehellman, usize::MAX);
+
+        assert!(pol.capper.is_some());
+        assert!(pol2.capper.is_none());
+        assert!(pol.receiver.is_some());
+        assert!(pol2.receiver.is_none());
+    }
+
+    #[test]
+    fn iter_diff_works() {
+        let divider = Int::from_str(RSA_2048).unwrap();
+        let prime1 = Int::from(vdf::util::get_prime());
+        let prime2 = Int::from(vdf::util::get_prime());
+        let diffiehellman = prime1 * prime2;
+        let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &divider);
+
+        let mut pol = ProofOfLatency::default();
+        pol.start(divider.clone(), root_hashed.clone(), 100);
+        let verifiers_vdf = vdf::VDF::new(divider, root_hashed, 100);
+
+        let (_, receiver) = verifiers_vdf.run_vdf_worker();
+        if let Ok(res) = receiver.recv() {
+            if let Ok(proof) = res {
+                pol.receive(proof);
+            }
+        }
+
+        assert!(pol.prover_result.is_some());
+        assert!(pol.verifier_result.is_some());
+        assert_eq!(
+            pol.verifier_result.unwrap().output,
+            pol.prover_result.unwrap().output
+        );
     }
 }

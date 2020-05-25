@@ -16,15 +16,14 @@ fn main() {
     // setup needs to generate a random starting point that couldn't have been forged beforehand.
     let prime1 = Int::from(vdf::util::get_prime());
     let prime2 = Int::from(vdf::util::get_prime());
-
     let diffiehellman = prime1 * prime2;
+    let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &divider);
 
-    pol.set_params(divider.clone(), diffiehellman.clone(), usize::MAX);
-    let verifiers_vdf = vdf::VDF::new(divider, diffiehellman, 80000);
+    pol.start(divider.clone(), root_hashed.clone(), 200000);
+    let verifiers_vdf = vdf::VDF::new(divider, root_hashed, 10000);
 
     //pol.estimate_upper_bound(5000);
 
-    pol.start();
     let (_, receiver) = verifiers_vdf.run_vdf_worker();
     if let Ok(res) = receiver.recv() {
         if let Ok(proof) = res {

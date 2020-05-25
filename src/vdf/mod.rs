@@ -25,7 +25,7 @@ impl Error for InvalidCapError {
 }
 
 /// The end result of the VDF which we still need to prove
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VDFResult {
     pub result: Int,
     pub iterations: usize,
@@ -46,20 +46,30 @@ impl PartialOrd for VDFResult {
 
 impl PartialEq for VDFResult {
     fn eq(&self, other: &Self) -> bool {
-        self.iterations == other.iterations
+        self.result == other.result && self.iterations == other.iterations
     }
 }
 
 impl Eq for VDFResult {}
 
 /// Proof of an already calculated VDF that gets passed around between peers
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VDFProof {
     pub rsa_mod: Int,
     pub seed: Int,
     pub output: VDFResult,
     pub cap: u64,
     pub proof: Int,
+}
+
+impl PartialEq for VDFProof {
+    fn eq(&self, other: &Self) -> bool {
+        self.output == other.output
+            && self.proof == other.proof
+            && self.rsa_mod == other.rsa_mod
+            && self.seed == other.seed
+            && self.cap == other.cap
+    }
 }
 
 impl VDFProof {
@@ -186,6 +196,7 @@ impl VDF {
                     if worker_sender.send(Ok(proof)).is_err() {
                         error!("Failed to send the proof to caller!");
                     }
+
                     break;
                 } else {
                     // Try receiving a cap from caller on each iteration
@@ -194,18 +205,19 @@ impl VDF {
                         info!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
-                        if !is_prime(cap) {
+                        if is_prime(cap) {
                             // Generate proof on given cap
                             let proof = self.generate_proof(VDFResult { result, iterations }, cap);
-
+                            debug!("Proof generated! {:?}", proof);
                             // Send proof to caller
                             if worker_sender.send(Ok(proof)).is_err() {
                                 error!("Failed to send the proof to caller!");
                             }
                         } else {
+                            error!("Received cap was not a prime!");
                             // Received cap was not a prime, send error to caller
                             if worker_sender.send(Err(InvalidCapError)).is_err() {
-                                error!("Received cap was not a prime!");
+                                error!("Error sending InvalidCapError to caller!");
                             }
                         }
                         break;
