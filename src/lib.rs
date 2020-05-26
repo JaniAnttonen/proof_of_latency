@@ -64,24 +64,22 @@ impl ProofOfLatency {
                             "VDF ran for {:?} times!\nThe output being {:?}",
                             proof.output.iterations, proof.output.result
                         );
-                        if proof.verify() {
-                            let iter_prover: usize = proof.output.iterations;
-                            let iter_verifier: usize = their_proof.output.iterations;
-                            let difference: Int = if iter_prover > iter_verifier {
-                                Int::from(iter_prover - iter_verifier)
-                            } else {
-                                Int::from(iter_verifier - iter_prover)
-                            };
-                            info!(
-                                "Both proofs are correct! Latency between peers was {:?} iterations.",
-                                difference
-                            );
 
-                            self.prover_result = Some(proof);
-                            self.verifier_result = Some(their_proof);
+                        let iter_prover: usize = proof.output.iterations;
+                        let iter_verifier: usize = their_proof.output.iterations;
+                        let difference: Int = if iter_prover > iter_verifier {
+                            Int::from(iter_prover - iter_verifier)
                         } else {
-                            error!("The VDF couldn't be verified!");
-                        }
+                            Int::from(iter_verifier - iter_prover)
+                        };
+                        info!(
+                            "Both proofs are correct! Latency between peers was {:?} iterations.",
+                            difference
+                        );
+
+                        self.prover_result = Some(proof);
+                        self.verifier_result = Some(their_proof);
+
                         break;
                     } else {
                         continue;

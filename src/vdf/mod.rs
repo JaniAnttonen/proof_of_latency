@@ -1,5 +1,6 @@
 use primal::is_prime;
 use ramp::Int;
+//use ramp::ll TODO: Use this to validate rsa_mod to have a gcd of 1 with RSA_2048
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
@@ -88,7 +89,7 @@ impl VDFProof {
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
-    pub fn abs_difference(&self, other: VDFProof) -> usize {
+    pub fn abs_difference(&self, other: &VDFProof) -> usize {
         let ours_is_larger = self.output > other.output;
         if ours_is_larger {
             self.output.iterations - other.output.iterations
