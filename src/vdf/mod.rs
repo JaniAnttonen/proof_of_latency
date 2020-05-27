@@ -1,6 +1,6 @@
 use primal::is_prime;
 use ramp::Int;
-//use ramp::ll; // TODO: Use this to validate divider to have a gcd of 1 with RSA_2048
+//use ramp::ll; // TODO: Use this to validate modulus to have a gcd of 1 with RSA_2048
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
@@ -56,8 +56,8 @@ impl Eq for VDFResult {}
 /// Proof of an already calculated VDF that gets passed around between peers
 #[derive(Debug, Clone)]
 pub struct VDFProof {
-    pub divider: Int,
-    pub seed: Int,
+    pub modulus: Int,
+    pub root: Int,
     pub output: VDFResult,
     pub cap: u64,
     pub proof: Int,
@@ -67,8 +67,8 @@ impl PartialEq for VDFProof {
     fn eq(&self, other: &Self) -> bool {
         self.output == other.output
             && self.proof == other.proof
-            && self.divider == other.divider
-            && self.seed == other.seed
+            && self.modulus == other.modulus
+            && self.root == other.root
             && self.cap == other.cap
     }
 }
@@ -78,14 +78,14 @@ impl VDFProof {
     pub fn verify(&self) -> bool {
         let cap_int: Int = Int::from(self.cap);
         // Check first that the result isn't larger than the RSA base
-        if self.proof > self.divider {
+        if self.proof > self.modulus {
             return false;
         }
         let r = util::pow_mod(2, self.output.iterations, self.cap.into());
         self.output.result
-            == (self.proof.pow_mod(&cap_int, &self.divider)
-                * self.seed.pow_mod(&Int::from(r), &self.divider))
-                % &self.divider
+            == (self.proof.pow_mod(&cap_int, &self.modulus)
+                * self.root.pow_mod(&Int::from(r), &self.modulus))
+                % &self.modulus
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
@@ -102,19 +102,19 @@ impl VDFProof {
 /// VDF is an options struct for calculating VDFProofs
 #[derive(Debug, Clone)]
 pub struct VDF {
-    pub divider: Int,
-    pub seed: Int,
+    pub modulus: Int,
+    pub root: Int,
     pub upper_bound: usize,
     pub cap: u64,
 }
 
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
-    pub fn new(divider: Int, seed: Int, upper_bound: usize) -> Self {
-//        ll.gcd(
+    pub fn new(modulus: Int, root: Int, upper_bound: usize) -> Self {
+        //        ll.gcd(
         Self {
-            divider,
-            seed,
+            modulus,
+            root,
             upper_bound,
             cap: 0,
         }
@@ -148,13 +148,13 @@ impl VDF {
             b = 2 * &r / &cap_int;
             r = (2 * &r) % &cap_int;
             proof =
-                proof.pow_mod(&Int::from(2), &self.divider) * self.seed.pow_mod(&b, &self.divider);
-            proof %= &self.divider;
+                proof.pow_mod(&Int::from(2), &self.modulus) * self.root.pow_mod(&b, &self.modulus);
+            proof %= &self.modulus;
         }
 
         VDFProof {
-            divider: self.divider.clone(),
-            seed: self.seed.clone(),
+            modulus: self.modulus.clone(),
+            root: self.root.clone(),
             output: result,
             cap,
             proof,
@@ -168,10 +168,10 @@ impl VDF {
         let (worker_sender, caller_receiver) = channel();
 
         thread::spawn(move || {
-            let mut result = self.seed.clone();
+            let mut result = self.root.clone();
             let mut iterations: usize = 0;
             loop {
-                result = result.pow_mod(&Int::from(2), &self.divider);
+                result = result.pow_mod(&Int::from(2), &self.modulus);
                 iterations += 1;
 
                 if iterations == self.upper_bound || iterations == usize::MAX {
@@ -234,7 +234,6 @@ impl VDF {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,14 +241,14 @@ mod tests {
 
     #[test]
     fn is_deterministic() {
-        let divider = Int::from_str("251697").unwrap();
+        let modulus = Int::from_str("251697").unwrap();
         let prime1 = Int::from(util::get_prime());
         let prime2 = Int::from(util::get_prime());
         let diffiehellman = prime1 * prime2;
-        let root_hashed = util::hash(&diffiehellman.to_string(), &divider);
+        let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
 
-        let verifiers_vdf = VDF::new(divider.clone(), root_hashed.clone(), 100);
-        let provers_vdf = VDF::new(divider, root_hashed, 100);
+        let verifiers_vdf = VDF::new(modulus.clone(), root_hashed.clone(), 100);
+        let provers_vdf = VDF::new(modulus, root_hashed, 100);
 
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();

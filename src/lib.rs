@@ -9,10 +9,10 @@ pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403
 
 pub enum STATE {}
 
-// divider = N, root = g
+// modulus = N, root = g
 #[derive(Debug)]
 pub struct ProofOfLatency {
-    pub divider: Option<Int>,
+    pub modulus: Option<Int>,
     pub root: Option<Int>,
     pub upper_bound: Option<usize>,
     capper: Option<Sender<u64>>,
@@ -24,7 +24,7 @@ pub struct ProofOfLatency {
 impl Default for ProofOfLatency {
     fn default() -> Self {
         Self {
-            divider: None,
+            modulus: None,
             root: None,
             upper_bound: None,
             capper: None,
@@ -36,12 +36,12 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn start(&mut self, divider: Int, root: Int, upper_bound: usize) {
-        self.divider = Some(divider.clone());
+    pub fn start(&mut self, modulus: Int, root: Int, upper_bound: usize) {
+        self.modulus = Some(modulus.clone());
         self.root = Some(root.clone());
         self.upper_bound = Some(upper_bound);
 
-        let prover_vdf = vdf::VDF::new(divider, root, upper_bound);
+        let prover_vdf = vdf::VDF::new(modulus, root, upper_bound);
         let (capper, receiver) = prover_vdf.run_vdf_worker();
         self.capper = Some(capper);
         self.receiver = Some(receiver);
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn start_modifies_self() {
-        let divider = Int::from_str(RSA_2048).unwrap();
+        let modulus = Int::from_str(RSA_2048).unwrap();
         let prime1 = Int::from(vdf::util::get_prime());
         let prime2 = Int::from(vdf::util::get_prime());
         let diffiehellman = prime1 * prime2;
@@ -105,7 +105,7 @@ mod tests {
         let mut pol = ProofOfLatency::default();
 
         let pol2 = ProofOfLatency::default();
-        pol.start(divider, diffiehellman, usize::MAX);
+        pol.start(modulus, diffiehellman, usize::MAX);
 
         assert!(pol.capper.is_some());
         assert!(pol2.capper.is_none());
@@ -115,15 +115,15 @@ mod tests {
 
     #[test]
     fn is_deterministic() {
-        let divider = Int::from_str(RSA_2048).unwrap();
+        let modulus = Int::from_str(RSA_2048).unwrap();
         let prime1 = Int::from(vdf::util::get_prime());
         let prime2 = Int::from(vdf::util::get_prime());
         let diffiehellman = prime1 * prime2;
-        let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &divider);
+        let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &modulus);
 
         let mut pol = ProofOfLatency::default();
-        pol.start(divider.clone(), root_hashed.clone(), 100);
-        let verifiers_vdf = vdf::VDF::new(divider, root_hashed, 100);
+        pol.start(modulus.clone(), root_hashed.clone(), 100);
+        let verifiers_vdf = vdf::VDF::new(modulus, root_hashed, 100);
 
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         if let Ok(res) = receiver.recv() {

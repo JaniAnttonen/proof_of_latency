@@ -20,7 +20,7 @@ fn main() {
     let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &divider);
 
     pol.start(divider.clone(), root_hashed.clone(), usize::MAX);
-    let verifiers_vdf = vdf::VDF::new(divider, root_hashed, 2000);
+    let verifiers_vdf = vdf::VDF::new(divider, root_hashed, 2000000);
 
     //pol.estimate_upper_bound(5000);
 
