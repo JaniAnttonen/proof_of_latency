@@ -1,25 +1,5 @@
-use primal::is_prime;
 use ramp::Int;
-use rand_core::RngCore;
 use sha3::{Digest, Sha3_512};
-
-/// Modular exponentiation
-pub fn pow_mod(b: u128, e: usize, n: u128) -> u128 {
-    if n == 1 {
-        return 0;
-    }
-    let mut result = 1;
-    let mut base = b % n;
-    let mut exp = e;
-    while exp > 0 {
-        if exp % 2 == 1 {
-            result = (result * base) % n;
-        }
-        exp >>= 1;
-        base = (base * base) % n;
-    }
-    result
-}
 
 pub fn hash(s: &str, rsa_mod: &Int) -> Int {
     let mut ans = Int::zero();
@@ -32,25 +12,4 @@ pub fn hash(s: &str, rsa_mod: &Int) -> Int {
         }
     }
     ans % rsa_mod
-}
-
-pub fn get_prime() -> u64 {
-    let mut rng = rand::thread_rng();
-    let mut l: u64;
-    loop {
-        l = rng.next_u64();
-        if is_prime(l) {
-            break;
-        }
-    }
-    l
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn pow_mod_works() {
-        assert_eq!(pow_mod(2, 5, 10), 2);
-    }
 }

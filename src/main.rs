@@ -1,4 +1,3 @@
-extern crate log;
 use proof_of_latency::{vdf, ProofOfLatency};
 use ramp::Int;
 use std::str::FromStr;

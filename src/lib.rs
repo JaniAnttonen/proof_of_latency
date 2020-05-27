@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate log;
+
 use ramp::Int;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -15,7 +16,7 @@ pub struct ProofOfLatency {
     pub modulus: Option<Int>,
     pub root: Option<Int>,
     pub upper_bound: Option<usize>,
-    capper: Option<Sender<u64>>,
+    capper: Option<Sender<Int>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
     pub prover_result: Option<vdf::VDFProof>,
     pub verifier_result: Option<vdf::VDFProof>,
@@ -50,7 +51,13 @@ impl ProofOfLatency {
     pub fn receive(&mut self, their_proof: vdf::VDFProof) {
         if their_proof.verify() {
             // Send received signature from the other peer, "capping off" the VDF
-            if self.capper.as_ref().unwrap().send(their_proof.cap).is_err() {
+            if self
+                .capper
+                .as_ref()
+                .unwrap()
+                .send(their_proof.cap.clone())
+                .is_err()
+            {
                 debug!(
                     "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
                 );

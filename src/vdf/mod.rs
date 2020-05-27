@@ -1,6 +1,6 @@
-use primal::is_prime;
 use ramp::Int;
-//use ramp::ll; // TODO: Use this to validate modulus to have a gcd of 1 with RSA_2048
+use ramp_primes::Generator;
+use ramp_primes::Verification;
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
@@ -59,7 +59,7 @@ pub struct VDFProof {
     pub modulus: Int,
     pub root: Int,
     pub output: VDFResult,
-    pub cap: u64,
+    pub cap: Int,
     pub proof: Int,
 }
 
@@ -76,22 +76,24 @@ impl PartialEq for VDFProof {
 impl VDFProof {
     /// A public function that a receiver can use to verify the correctness of the VDFProof
     pub fn verify(&self) -> bool {
-        let cap_int: Int = Int::from(self.cap);
         // Check first that the result isn't larger than the RSA base
         if self.proof > self.modulus {
             return false;
         }
-        let r = util::pow_mod(2, self.output.iterations, self.cap.into());
+        let r = Int::from(self.output.iterations).pow_mod(&Int::from(2), &self.cap);
         self.output.result
-            == (self.proof.pow_mod(&cap_int, &self.modulus)
+            == (self.proof.pow_mod(&self.cap, &self.modulus)
                 * self.root.pow_mod(&Int::from(r), &self.modulus))
                 % &self.modulus
     }
 
+    pub fn validate(&self) -> bool {
+        self.modulus.gcd(&self.root) == 1 && self.modulus.gcd(&self.cap) == 1
+    }
+
     /// Helper function for calculating the difference in iterations between two VDFProofs
     pub fn abs_difference(&self, other: &VDFProof) -> usize {
-        let ours_is_larger = self.output > other.output;
-        if ours_is_larger {
+        if self.output > other.output {
             self.output.iterations - other.output.iterations
         } else {
             other.output.iterations - self.output.iterations
@@ -105,25 +107,25 @@ pub struct VDF {
     pub modulus: Int,
     pub root: Int,
     pub upper_bound: usize,
-    pub cap: u64,
+    pub cap: Int,
 }
 
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
     pub fn new(modulus: Int, root: Int, upper_bound: usize) -> Self {
-        //        ll.gcd(
+        assert!(modulus.gcd(&root) == 1);
         Self {
             modulus,
             root,
             upper_bound,
-            cap: 0,
+            cap: Int::zero(),
         }
     }
 
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
     /// millisecond threshold.
     pub fn estimate_upper_bound(mut self, ms_bound: u64) {
-        let cap: u64 = util::get_prime();
+        let cap: Int = Generator::new_prime(128);
         let (capper, receiver) = self.clone().run_vdf_worker();
 
         let sleep_time = time::Duration::from_millis(ms_bound);
@@ -138,15 +140,14 @@ impl VDF {
     }
 
     /// Returns a VDFProof based on a VDFResult
-    fn generate_proof(&self, result: VDFResult, cap: u64) -> VDFProof {
+    fn generate_proof(&self, result: VDFResult, cap: Int) -> VDFProof {
         let mut proof = Int::one();
         let mut r = Int::one();
         let mut b: Int;
 
-        let cap_int: Int = Int::from(cap);
         for _ in 0..result.iterations {
-            b = 2 * &r / &cap_int;
-            r = (2 * &r) % &cap_int;
+            b = 2 * &r / &cap;
+            r = (2 * &r) % &cap;
             proof =
                 proof.pow_mod(&Int::from(2), &self.modulus) * self.root.pow_mod(&b, &self.modulus);
             proof %= &self.modulus;
@@ -163,7 +164,7 @@ impl VDF {
 
     /// A worker that does the actual calculation in a VDF. Returns a VDFProof based on initial
     /// parameters in the VDF.
-    pub fn run_vdf_worker(self) -> (Sender<u64>, Receiver<Result<VDFProof, InvalidCapError>>) {
+    pub fn run_vdf_worker(self) -> (Sender<Int>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (caller_sender, worker_receiver) = channel();
         let (worker_sender, caller_receiver) = channel();
 
@@ -179,12 +180,12 @@ impl VDF {
                     debug!("Upper bound of {:?} reached, generating proof.", iterations);
 
                     // Copy pregenerated cap
-                    let mut self_cap: u64 = self.cap;
+                    let mut self_cap: Int = self.cap.clone();
 
                     // Check if default, check for primality if else
                     if self_cap == 0 {
-                        self_cap = util::get_prime();
-                    } else if !is_prime(self_cap) {
+                        self_cap = Generator::new_prime(128);
+                    } else if !Verification::verify_prime(self_cap.clone()) {
                         if worker_sender.send(Err(InvalidCapError)).is_err() {
                             error!("Self-generated cap was not a prime! Check the implementation!");
                         }
@@ -202,14 +203,17 @@ impl VDF {
                     break;
                 } else {
                     // Try receiving a cap from caller on each iteration
-                    if let Ok(cap) = worker_receiver.try_recv() {
+                    let cap = worker_receiver.try_recv();
+                    if !cap.is_err() {
+                        let received_cap: Int = cap.unwrap();
                         // Cap received
-                        info!("Received the cap {:?}, generating proof.", cap);
+                        info!("Received the cap {:?}, generating proof.", received_cap);
 
                         // Check for primality
-                        if is_prime(cap) {
+                        if Verification::verify_prime(received_cap.clone()) {
                             // Generate proof on given cap
-                            let proof = self.generate_proof(VDFResult { result, iterations }, cap);
+                            let proof =
+                                self.generate_proof(VDFResult { result, iterations }, received_cap);
                             debug!("Proof generated! {:?}", proof);
                             // Send proof to caller
                             if worker_sender.send(Ok(proof)).is_err() {
