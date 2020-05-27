@@ -1,6 +1,6 @@
 use primal::is_prime;
 use ramp::Int;
-//use ramp::ll TODO: Use this to validate rsa_mod to have a gcd of 1 with RSA_2048
+//use ramp::ll; // TODO: Use this to validate divider to have a gcd of 1 with RSA_2048
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
@@ -56,7 +56,7 @@ impl Eq for VDFResult {}
 /// Proof of an already calculated VDF that gets passed around between peers
 #[derive(Debug, Clone)]
 pub struct VDFProof {
-    pub rsa_mod: Int,
+    pub divider: Int,
     pub seed: Int,
     pub output: VDFResult,
     pub cap: u64,
@@ -67,7 +67,7 @@ impl PartialEq for VDFProof {
     fn eq(&self, other: &Self) -> bool {
         self.output == other.output
             && self.proof == other.proof
-            && self.rsa_mod == other.rsa_mod
+            && self.divider == other.divider
             && self.seed == other.seed
             && self.cap == other.cap
     }
@@ -78,14 +78,14 @@ impl VDFProof {
     pub fn verify(&self) -> bool {
         let cap_int: Int = Int::from(self.cap);
         // Check first that the result isn't larger than the RSA base
-        if self.proof > self.rsa_mod {
+        if self.proof > self.divider {
             return false;
         }
         let r = util::pow_mod(2, self.output.iterations, self.cap.into());
         self.output.result
-            == (self.proof.pow_mod(&cap_int, &self.rsa_mod)
-                * self.seed.pow_mod(&Int::from(r), &self.rsa_mod))
-                % &self.rsa_mod
+            == (self.proof.pow_mod(&cap_int, &self.divider)
+                * self.seed.pow_mod(&Int::from(r), &self.divider))
+                % &self.divider
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
@@ -102,7 +102,7 @@ impl VDFProof {
 /// VDF is an options struct for calculating VDFProofs
 #[derive(Debug, Clone)]
 pub struct VDF {
-    pub rsa_mod: Int,
+    pub divider: Int,
     pub seed: Int,
     pub upper_bound: usize,
     pub cap: u64,
@@ -110,9 +110,10 @@ pub struct VDF {
 
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
-    pub fn new(rsa_mod: Int, seed: Int, upper_bound: usize) -> Self {
+    pub fn new(divider: Int, seed: Int, upper_bound: usize) -> Self {
+//        ll.gcd(
         Self {
-            rsa_mod,
+            divider,
             seed,
             upper_bound,
             cap: 0,
@@ -147,12 +148,12 @@ impl VDF {
             b = 2 * &r / &cap_int;
             r = (2 * &r) % &cap_int;
             proof =
-                proof.pow_mod(&Int::from(2), &self.rsa_mod) * self.seed.pow_mod(&b, &self.rsa_mod);
-            proof %= &self.rsa_mod;
+                proof.pow_mod(&Int::from(2), &self.divider) * self.seed.pow_mod(&b, &self.divider);
+            proof %= &self.divider;
         }
 
         VDFProof {
-            rsa_mod: self.rsa_mod.clone(),
+            divider: self.divider.clone(),
             seed: self.seed.clone(),
             output: result,
             cap,
@@ -170,7 +171,7 @@ impl VDF {
             let mut result = self.seed.clone();
             let mut iterations: usize = 0;
             loop {
-                result = result.pow_mod(&Int::from(2), &self.rsa_mod);
+                result = result.pow_mod(&Int::from(2), &self.divider);
                 iterations += 1;
 
                 if iterations == self.upper_bound || iterations == usize::MAX {
@@ -230,5 +231,46 @@ impl VDF {
         });
 
         (caller_sender, caller_receiver)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn is_deterministic() {
+        let divider = Int::from_str("251697").unwrap();
+        let prime1 = Int::from(util::get_prime());
+        let prime2 = Int::from(util::get_prime());
+        let diffiehellman = prime1 * prime2;
+        let root_hashed = util::hash(&diffiehellman.to_string(), &divider);
+
+        let verifiers_vdf = VDF::new(divider.clone(), root_hashed.clone(), 100);
+        let provers_vdf = VDF::new(divider, root_hashed, 100);
+
+        let (_, receiver) = verifiers_vdf.run_vdf_worker();
+        let (_, receiver2) = provers_vdf.run_vdf_worker();
+
+        if let Ok(res) = receiver.recv() {
+            if let Ok(proof) = res {
+                assert!(proof.verify());
+            }
+        }
+
+        if let Ok(res) = receiver2.recv() {
+            if let Ok(proof) = res {
+                assert!(proof.verify());
+            }
+        }
+
+        // assert!(prover_result.is_some());
+        // assert!(pol.verifier_result.is_some());
+        // assert_eq!(
+        //     pol.verifier_result.unwrap().output,
+        //     pol.prover_result.unwrap().output
+        // );
     }
 }
