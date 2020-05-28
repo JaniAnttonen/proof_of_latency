@@ -26,7 +26,7 @@ impl Error for InvalidCapError {
 }
 
 /// The end result of the VDF which we still need to prove
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct VDFResult {
     pub result: Int,
     pub iterations: usize,
@@ -54,7 +54,7 @@ impl PartialEq for VDFResult {
 impl Eq for VDFResult {}
 
 /// Proof of an already calculated VDF that gets passed around between peers
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct VDFProof {
     pub modulus: Int,
     pub root: Int,
@@ -83,12 +83,13 @@ impl VDFProof {
         let r = Int::from(self.output.iterations).pow_mod(&Int::from(2), &self.cap);
         self.output.result
             == (self.proof.pow_mod(&self.cap, &self.modulus)
-                * self.root.pow_mod(&Int::from(r), &self.modulus))
+                * self.root.pow_mod(&r, &self.modulus))
                 % &self.modulus
     }
 
     pub fn validate(&self) -> bool {
-        self.modulus.gcd(&self.root) == 1 && self.modulus.gcd(&self.cap) == 1
+        self.modulus.gcd(&self.root) == 1
+            && self.modulus.gcd(&self.cap) == 1
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
@@ -113,7 +114,6 @@ pub struct VDF {
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
     pub fn new(modulus: Int, root: Int, upper_bound: usize) -> Self {
-        assert!(modulus.gcd(&root) == 1);
         Self {
             modulus,
             root,
@@ -165,7 +165,7 @@ impl VDF {
     /// A worker that does the actual calculation in a VDF. Returns a VDFProof based on initial
     /// parameters in the VDF.
     pub fn run_vdf_worker(self) -> (Sender<Int>, Receiver<Result<VDFProof, InvalidCapError>>) {
-        let (caller_sender, worker_receiver) = channel();
+        let (caller_sender, worker_receiver): (Sender<Int>, Receiver<Int>) = channel();
         let (worker_sender, caller_receiver) = channel();
 
         thread::spawn(move || {
@@ -202,18 +202,15 @@ impl VDF {
 
                     break;
                 } else {
-                    // Try receiving a cap from caller on each iteration
-                    let cap = worker_receiver.try_recv();
-                    if !cap.is_err() {
-                        let received_cap: Int = cap.unwrap();
+                    // Try receiving a cap from the other participant on each iteration
+                    if let Ok(cap) = worker_receiver.try_recv() {
                         // Cap received
-                        info!("Received the cap {:?}, generating proof.", received_cap);
+                        info!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
-                        if Verification::verify_prime(received_cap.clone()) {
+                        if Verification::verify_prime(cap.clone()) {
                             // Generate proof on given cap
-                            let proof =
-                                self.generate_proof(VDFResult { result, iterations }, received_cap);
+                            let proof = self.generate_proof(VDFResult { result, iterations }, cap);
                             debug!("Proof generated! {:?}", proof);
                             // Send proof to caller
                             if worker_sender.send(Ok(proof)).is_err() {
@@ -246,8 +243,8 @@ mod tests {
     #[test]
     fn is_deterministic() {
         let modulus = Int::from_str("251697").unwrap();
-        let prime1 = Int::from(util::get_prime());
-        let prime2 = Int::from(util::get_prime());
+        let prime1 = Generator::new_prime(128);
+        let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
         let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
 
@@ -257,23 +254,23 @@ mod tests {
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
 
+        let mut our_proof: VDFProof = VDFProof::default();
+        let mut their_proof: VDFProof = VDFProof::default();
+
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
                 assert!(proof.verify());
+                our_proof = proof;
             }
         }
 
         if let Ok(res) = receiver2.recv() {
             if let Ok(proof) = res {
                 assert!(proof.verify());
+                their_proof = proof;
             }
         }
-
-        // assert!(prover_result.is_some());
-        // assert!(pol.verifier_result.is_some());
-        // assert_eq!(
-        //     pol.verifier_result.unwrap().output,
-        //     pol.prover_result.unwrap().output
-        // );
+        
+        assert_eq!(our_proof, their_proof);
     }
 }

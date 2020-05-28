@@ -101,12 +101,13 @@ impl ProofOfLatency {
 mod tests {
     use super::*;
     use std::str::FromStr;
+    use ramp_primes::Generator;
 
     #[test]
     fn start_modifies_self() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Int::from(vdf::util::get_prime());
-        let prime2 = Int::from(vdf::util::get_prime());
+        let prime1 = Generator::new_prime(128);
+        let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
 
         let mut pol = ProofOfLatency::default();
@@ -123,8 +124,8 @@ mod tests {
     #[test]
     fn is_deterministic() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Int::from(vdf::util::get_prime());
-        let prime2 = Int::from(vdf::util::get_prime());
+        let prime1 = Generator::new_prime(128);
+        let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
         let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &modulus);
 
