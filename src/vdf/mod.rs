@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn is_deterministic() {
-        let modulus = Int::from_str("251697").unwrap();
+        let modulus = Int::from_str("12").unwrap();
         let prime1 = Generator::new_prime(128);
         let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
@@ -259,6 +259,7 @@ mod tests {
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
+                println!("EBIN");
                 assert!(proof.verify());
                 our_proof = proof;
             }
@@ -266,6 +267,7 @@ mod tests {
 
         if let Ok(res) = receiver2.recv() {
             if let Ok(proof) = res {
+                println!("LOLWUT");
                 assert!(proof.verify());
                 their_proof = proof;
             }

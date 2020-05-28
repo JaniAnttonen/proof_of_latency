@@ -100,8 +100,8 @@ impl ProofOfLatency {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
     use ramp_primes::Generator;
+    use std::str::FromStr;
 
     #[test]
     fn start_modifies_self() {
@@ -140,6 +140,7 @@ mod tests {
             }
         }
 
+        println!("{:?}", pol.prover_result);
         assert!(pol.prover_result.is_some());
         assert!(pol.verifier_result.is_some());
         assert_eq!(
