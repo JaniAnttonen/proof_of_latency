@@ -82,14 +82,12 @@ impl VDFProof {
         }
         let r = Int::from(self.output.iterations).pow_mod(&Int::from(2), &self.cap);
         self.output.result
-            == (self.proof.pow_mod(&self.cap, &self.modulus)
-                * self.root.pow_mod(&r, &self.modulus))
+            == (self.proof.pow_mod(&self.cap, &self.modulus) * self.root.pow_mod(&r, &self.modulus))
                 % &self.modulus
     }
 
     pub fn validate(&self) -> bool {
-        self.modulus.gcd(&self.root) == 1
-            && self.modulus.gcd(&self.cap) == 1
+        self.modulus.gcd(&self.root) == 1 && self.modulus.gcd(&self.cap) == 1
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
@@ -272,7 +270,7 @@ mod tests {
                 their_proof = proof;
             }
         }
-        
+
         assert_eq!(our_proof, their_proof);
     }
 }
