@@ -265,6 +265,7 @@ mod tests {
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
+                println!("{:?}", proof);
                 assert!(proof.verify());
                 our_proof = proof;
             }
