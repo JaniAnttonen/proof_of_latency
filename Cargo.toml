@@ -8,13 +8,8 @@ edition = "2018"
 ramp = "=0.5.7"
 ramp-primes = "0.4.1"
 sha3 = "0.8.2"
-rand = "0.7.2"
-rand_core = "0.5.1"
-# libp2p = "0.18.1" 
-# async-std = "1.5.0"
 env_logger = "0.7.1" 
 log = "0.4.8"
-primal = "0.2"
 # machine = "0.2"
 
 # Custom git hooks, definitions under ./cargo-husky/hooks
