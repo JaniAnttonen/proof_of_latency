@@ -49,48 +49,46 @@ impl ProofOfLatency {
     }
 
     pub fn receive(&mut self, their_proof: vdf::VDFProof) {
-        if their_proof.verify() {
-            // Send received signature from the other peer, "capping off" the VDF
-            if self
-                .capper
-                .as_ref()
-                .unwrap()
-                .send(their_proof.cap.clone())
-                .is_err()
-            {
-                debug!(
-                    "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
-                );
-            };
+        // Send received signature from the other peer, "capping off" the VDF
+        if self
+            .capper
+            .as_ref()
+            .unwrap()
+            .send(their_proof.cap.clone())
+            .is_err()
+        {
+            debug!(
+                "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
+            );
+        };
 
-            // Wait for response from VDF worker
-            loop {
-                if let Ok(res) = self.receiver.as_ref().unwrap().try_recv() {
-                    if let Ok(proof) = res {
-                        debug!(
-                            "VDF ran for {:?} times!\nThe output being {:?}",
-                            proof.output.iterations, proof.output.result
-                        );
+        // Wait for response from VDF worker
+        loop {
+            if let Ok(res) = self.receiver.as_ref().unwrap().try_recv() {
+                if let Ok(proof) = res {
+                    debug!(
+                        "VDF ran for {:?} times!\nThe output being {:?}",
+                        proof.output.iterations, proof.output.result
+                    );
 
-                        let iter_prover: usize = proof.output.iterations;
-                        let iter_verifier: usize = their_proof.output.iterations;
-                        let difference: Int = if iter_prover > iter_verifier {
-                            Int::from(iter_prover - iter_verifier)
-                        } else {
-                            Int::from(iter_verifier - iter_prover)
-                        };
-                        info!(
-                            "Both proofs are correct! Latency between peers was {:?} iterations.",
-                            difference
-                        );
-
-                        self.prover_result = Some(proof);
-                        self.verifier_result = Some(their_proof);
-
-                        break;
+                    let iter_prover: usize = proof.output.iterations;
+                    let iter_verifier: usize = their_proof.output.iterations;
+                    let difference: Int = if iter_prover > iter_verifier {
+                        Int::from(iter_prover - iter_verifier)
                     } else {
-                        continue;
-                    }
+                        Int::from(iter_verifier - iter_prover)
+                    };
+                    info!(
+                        "Both proofs are correct! Latency between peers was {:?} iterations.",
+                        difference
+                    );
+
+                    self.prover_result = Some(proof);
+                    self.verifier_result = Some(their_proof);
+
+                    break;
+                } else {
+                    continue;
                 }
             }
         }
@@ -140,7 +138,6 @@ mod tests {
             }
         }
 
-        println!("{:?}", pol.prover_result);
         assert!(pol.prover_result.is_some());
         assert!(pol.verifier_result.is_some());
         assert_eq!(

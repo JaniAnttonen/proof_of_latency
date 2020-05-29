@@ -10,19 +10,15 @@ fn main() {
 
     let mut pol = ProofOfLatency::default();
 
-    let divider = Int::from_str(proof_of_latency::RSA_2048).unwrap();
+    let modulus = Int::from_str(proof_of_latency::RSA_2048).unwrap();
 
-    // Security parameter, g in the paper. This needs to be replaced with a key that's decided
-    // between two peers with Diffie-Hellman. The starting point for the VDF that gets squared
-    // repeatedly for T times. Used to verify that the calculations started here. That's why the
-    // setup needs to generate a random starting point that couldn't have been forged beforehand.
     let prime1 = Generator::new_prime(128);
     let prime2 = Generator::new_prime(128);
     let diffiehellman = prime1 * prime2;
-    let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &divider);
+    let root = vdf::util::hash(&diffiehellman.to_string(), &modulus);
 
-    pol.start(divider.clone(), root_hashed.clone(), usize::MAX);
-    let verifiers_vdf = vdf::VDF::new(divider, root_hashed, 20000);
+    pol.start(modulus.clone(), root.clone(), usize::MAX);
+    let verifiers_vdf = vdf::VDF::new(modulus, root, 20000);
 
     //pol.estimate_upper_bound(5000);
 

@@ -120,6 +120,12 @@ impl VDF {
         }
     }
 
+    /// Add a precomputed cap to the VDF
+    pub fn with_cap(mut self, cap: Int) -> Self {
+        self.cap = cap;
+        self
+    }
+
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
     /// millisecond threshold.
     pub fn estimate_upper_bound(mut self, ms_bound: u64) {
@@ -197,7 +203,6 @@ impl VDF {
                     if worker_sender.send(Ok(proof)).is_err() {
                         error!("Failed to send the proof to caller!");
                     }
-
                     break;
                 } else {
                     // Try receiving a cap from the other participant on each iteration
@@ -240,14 +245,17 @@ mod tests {
 
     #[test]
     fn is_deterministic() {
-        let modulus = Int::from_str("12").unwrap();
+        let modulus = Int::from_str("91").unwrap();
         let prime1 = Generator::new_prime(128);
         let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
         let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
 
-        let verifiers_vdf = VDF::new(modulus.clone(), root_hashed.clone(), 100);
-        let provers_vdf = VDF::new(modulus, root_hashed, 100);
+        // Create two VDFs with same inputs to check if they end up in the same result
+        let cap = Generator::new_prime(128);
+        let verifiers_vdf =
+            VDF::new(modulus.clone(), root_hashed.clone(), 100).with_cap(cap.clone());
+        let provers_vdf = VDF::new(modulus, root_hashed, 100).with_cap(cap);
 
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
@@ -257,7 +265,6 @@ mod tests {
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
-                println!("EBIN");
                 assert!(proof.verify());
                 our_proof = proof;
             }
@@ -265,7 +272,6 @@ mod tests {
 
         if let Ok(res) = receiver2.recv() {
             if let Ok(proof) = res {
-                println!("LOLWUT");
                 assert!(proof.verify());
                 their_proof = proof;
             }
