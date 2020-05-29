@@ -15,10 +15,10 @@ fn main() {
     let prime1 = Generator::new_prime(128);
     let prime2 = Generator::new_prime(128);
     let diffiehellman = prime1 * prime2;
-    let root = vdf::util::hash(&diffiehellman.to_string(), &modulus);
+    let base = vdf::util::hash(&diffiehellman.to_string(), &modulus);
 
-    pol.start(modulus.clone(), root.clone(), usize::MAX);
-    let verifiers_vdf = vdf::VDF::new(modulus, root, 20000);
+    pol.start(modulus.clone(), base.clone(), usize::MAX);
+    let verifiers_vdf = vdf::VDF::new(modulus, base, 20000);
 
     //pol.estimate_upper_bound(5000);
 

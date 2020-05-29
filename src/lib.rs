@@ -10,11 +10,11 @@ pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403
 
 pub enum STATE {}
 
-// modulus = N, root = g
+// modulus = N, base = g
 #[derive(Debug)]
 pub struct ProofOfLatency {
     pub modulus: Option<Int>,
-    pub root: Option<Int>,
+    pub base: Option<Int>,
     pub upper_bound: Option<usize>,
     capper: Option<Sender<Int>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
@@ -26,7 +26,7 @@ impl Default for ProofOfLatency {
     fn default() -> Self {
         Self {
             modulus: None,
-            root: None,
+            base: None,
             upper_bound: None,
             capper: None,
             receiver: None,
@@ -37,12 +37,12 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn start(&mut self, modulus: Int, root: Int, upper_bound: usize) {
+    pub fn start(&mut self, modulus: Int, base: Int, upper_bound: usize) {
         self.modulus = Some(modulus.clone());
-        self.root = Some(root.clone());
+        self.base = Some(base.clone());
         self.upper_bound = Some(upper_bound);
 
-        let prover_vdf = vdf::VDF::new(modulus, root, upper_bound);
+        let prover_vdf = vdf::VDF::new(modulus, base, upper_bound);
         let (capper, receiver) = prover_vdf.run_vdf_worker();
         self.capper = Some(capper);
         self.receiver = Some(receiver);

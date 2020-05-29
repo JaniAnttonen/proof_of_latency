@@ -57,7 +57,7 @@ impl Eq for VDFResult {}
 #[derive(Debug, Clone, Default)]
 pub struct VDFProof {
     pub modulus: Int,
-    pub root: Int,
+    pub base: Int,
     pub output: VDFResult,
     pub cap: Int,
     pub proof: Int,
@@ -68,7 +68,7 @@ impl PartialEq for VDFProof {
         self.output == other.output
             && self.proof == other.proof
             && self.modulus == other.modulus
-            && self.root == other.root
+            && self.base == other.base
             && self.cap == other.cap
     }
 }
@@ -82,12 +82,12 @@ impl VDFProof {
         }
         let r = Int::from(self.output.iterations).pow_mod(&Int::from(2), &self.cap);
         self.output.result
-            == (self.proof.pow_mod(&self.cap, &self.modulus) * self.root.pow_mod(&r, &self.modulus))
+            == (self.proof.pow_mod(&self.cap, &self.modulus) * self.base.pow_mod(&r, &self.modulus))
                 % &self.modulus
     }
 
     pub fn validate(&self) -> bool {
-        self.modulus.gcd(&self.root) == 1 && self.modulus.gcd(&self.cap) == 1
+        self.modulus.gcd(&self.base) == 1 && self.modulus.gcd(&self.cap) == 1
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
@@ -104,17 +104,17 @@ impl VDFProof {
 #[derive(Debug, Clone)]
 pub struct VDF {
     pub modulus: Int,
-    pub root: Int,
+    pub base: Int,
     pub upper_bound: usize,
     pub cap: Int,
 }
 
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
-    pub fn new(modulus: Int, root: Int, upper_bound: usize) -> Self {
+    pub fn new(modulus: Int, base: Int, upper_bound: usize) -> Self {
         Self {
             modulus,
-            root,
+            base,
             upper_bound,
             cap: Int::zero(),
         }
@@ -153,13 +153,13 @@ impl VDF {
             b = 2 * &r / &cap;
             r = (2 * &r) % &cap;
             proof =
-                proof.pow_mod(&Int::from(2), &self.modulus) * self.root.pow_mod(&b, &self.modulus);
+                proof.pow_mod(&Int::from(2), &self.modulus) * self.base.pow_mod(&b, &self.modulus);
             proof %= &self.modulus;
         }
 
         VDFProof {
             modulus: self.modulus.clone(),
-            root: self.root.clone(),
+            base: self.base.clone(),
             output: result,
             cap,
             proof,
@@ -173,7 +173,7 @@ impl VDF {
         let (worker_sender, caller_receiver) = channel();
 
         thread::spawn(move || {
-            let mut result = self.root.clone();
+            let mut result = self.base.clone();
             let mut iterations: usize = 0;
             loop {
                 result = result.pow_mod(&Int::from(2), &self.modulus);
