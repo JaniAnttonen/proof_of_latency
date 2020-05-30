@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate log;
+
 use ramp::Int;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -9,13 +10,13 @@ pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403
 
 pub enum STATE {}
 
-// modulus = N, root = g
+// modulus = N, base = g
 #[derive(Debug)]
 pub struct ProofOfLatency {
     pub modulus: Option<Int>,
-    pub root: Option<Int>,
+    pub base: Option<Int>,
     pub upper_bound: Option<usize>,
-    capper: Option<Sender<u64>>,
+    capper: Option<Sender<Int>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
     pub prover_result: Option<vdf::VDFProof>,
     pub verifier_result: Option<vdf::VDFProof>,
@@ -25,7 +26,7 @@ impl Default for ProofOfLatency {
     fn default() -> Self {
         Self {
             modulus: None,
-            root: None,
+            base: None,
             upper_bound: None,
             capper: None,
             receiver: None,
@@ -36,54 +37,58 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn start(&mut self, modulus: Int, root: Int, upper_bound: usize) {
+    pub fn start(&mut self, modulus: Int, base: Int, upper_bound: usize) {
         self.modulus = Some(modulus.clone());
-        self.root = Some(root.clone());
+        self.base = Some(base.clone());
         self.upper_bound = Some(upper_bound);
 
-        let prover_vdf = vdf::VDF::new(modulus, root, upper_bound);
+        let prover_vdf = vdf::VDF::new(modulus, base, upper_bound);
         let (capper, receiver) = prover_vdf.run_vdf_worker();
         self.capper = Some(capper);
         self.receiver = Some(receiver);
     }
 
     pub fn receive(&mut self, their_proof: vdf::VDFProof) {
-        if their_proof.verify() {
-            // Send received signature from the other peer, "capping off" the VDF
-            if self.capper.as_ref().unwrap().send(their_proof.cap).is_err() {
-                debug!(
-                    "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
-                );
-            };
+        // Send received signature from the other peer, "capping off" the VDF
+        if self
+            .capper
+            .as_ref()
+            .unwrap()
+            .send(their_proof.cap.clone())
+            .is_err()
+        {
+            debug!(
+                "The VDF has stopped prematurely or it reached the upper bound! Waiting for proof..."
+            );
+        };
 
-            // Wait for response from VDF worker
-            loop {
-                if let Ok(res) = self.receiver.as_ref().unwrap().try_recv() {
-                    if let Ok(proof) = res {
-                        debug!(
-                            "VDF ran for {:?} times!\nThe output being {:?}",
-                            proof.output.iterations, proof.output.result
-                        );
+        // Wait for response from VDF worker
+        loop {
+            if let Ok(res) = self.receiver.as_ref().unwrap().try_recv() {
+                if let Ok(proof) = res {
+                    debug!(
+                        "VDF ran for {:?} times!\nThe output being {:?}",
+                        proof.output.iterations, proof.output.result
+                    );
 
-                        let iter_prover: usize = proof.output.iterations;
-                        let iter_verifier: usize = their_proof.output.iterations;
-                        let difference: Int = if iter_prover > iter_verifier {
-                            Int::from(iter_prover - iter_verifier)
-                        } else {
-                            Int::from(iter_verifier - iter_prover)
-                        };
-                        info!(
-                            "Both proofs are correct! Latency between peers was {:?} iterations.",
-                            difference
-                        );
-
-                        self.prover_result = Some(proof);
-                        self.verifier_result = Some(their_proof);
-
-                        break;
+                    let iter_prover: usize = proof.output.iterations;
+                    let iter_verifier: usize = their_proof.output.iterations;
+                    let difference: Int = if iter_prover > iter_verifier {
+                        Int::from(iter_prover - iter_verifier)
                     } else {
-                        continue;
-                    }
+                        Int::from(iter_verifier - iter_prover)
+                    };
+                    info!(
+                        "Both proofs are correct! Latency between peers was {:?} iterations.",
+                        difference
+                    );
+
+                    self.prover_result = Some(proof);
+                    self.verifier_result = Some(their_proof);
+
+                    break;
+                } else {
+                    continue;
                 }
             }
         }
@@ -93,13 +98,14 @@ impl ProofOfLatency {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ramp_primes::Generator;
     use std::str::FromStr;
 
     #[test]
     fn start_modifies_self() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Int::from(vdf::util::get_prime());
-        let prime2 = Int::from(vdf::util::get_prime());
+        let prime1 = Generator::new_prime(128);
+        let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
 
         let mut pol = ProofOfLatency::default();
@@ -116,8 +122,8 @@ mod tests {
     #[test]
     fn is_deterministic() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Int::from(vdf::util::get_prime());
-        let prime2 = Int::from(vdf::util::get_prime());
+        let prime1 = Generator::new_prime(128);
+        let prime2 = Generator::new_prime(128);
         let diffiehellman = prime1 * prime2;
         let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &modulus);
 
