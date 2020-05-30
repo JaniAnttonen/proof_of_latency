@@ -260,24 +260,21 @@ mod tests {
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
 
-        let mut our_proof: VDFProof = VDFProof::default();
-        let mut their_proof: VDFProof = VDFProof::default();
-
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
                 println!("{:?}", proof);
                 assert!(proof.verify());
-                our_proof = proof;
+
+                let our_proof = proof;
+
+                if let Ok(res2) = receiver2.recv() {
+                    if let Ok(proof2) = res2 {
+                        assert!(proof2.verify());
+                        let their_proof = proof2;
+                        assert_eq!(our_proof, their_proof);
+                    }
+                }
             }
         }
-
-        if let Ok(res) = receiver2.recv() {
-            if let Ok(proof) = res {
-                assert!(proof.verify());
-                their_proof = proof;
-            }
-        }
-
-        assert_eq!(our_proof, their_proof);
     }
 }
