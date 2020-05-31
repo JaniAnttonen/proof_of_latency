@@ -241,7 +241,10 @@ impl VDF {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
     use std::str::FromStr;
+
+    const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
     #[test]
     fn is_deterministic() {
@@ -273,6 +276,26 @@ mod tests {
                         let their_proof = proof2;
                         assert_eq!(our_proof, their_proof);
                     }
+                }
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn works_with_any_integer(s in 0usize..usize::MAX) {
+            let s_int: Int = Int::from(s);
+            let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
+
+            let root_hashed = util::hash(&s.to_string(), &rsa_int);
+
+            let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int.clone());
+            let (_, receiver) = vdf.run_vdf_worker();
+
+            if let Ok(res) = receiver.recv() {
+                if let Ok(proof) = res {
+                    println!("{:?}", proof);
+                    assert!(proof.verify());
                 }
             }
         }

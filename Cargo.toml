@@ -12,6 +12,9 @@ env_logger = "0.7.1"
 log = "0.4.8"
 # machine = "0.2"
 
+[dev-dependencies]
+proptest = "0.10.0"
+
 # Custom git hooks, definitions under ./cargo-husky/hooks
 [dev-dependencies.cargo-husky]
 version = "1"
