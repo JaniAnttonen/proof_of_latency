@@ -18,7 +18,7 @@ fn main() {
     let base = vdf::util::hash(&diffiehellman.to_string(), &modulus);
 
     pol.start(modulus.clone(), base.clone(), usize::MAX);
-    let verifiers_vdf = vdf::VDF::new(modulus, base, 50_000);
+    let verifiers_vdf = vdf::VDF::new(modulus, base, 30);
 
     //pol.estimate_upper_bound(5000);
 

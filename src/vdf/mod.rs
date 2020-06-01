@@ -128,7 +128,7 @@ impl VDF {
 
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
     /// millisecond threshold.
-    pub fn estimate_upper_bound(mut self, ms_bound: u64) {
+    pub fn estimate_upper_bound(mut self, ms_bound: u64) -> Self {
         let cap: Int = Generator::new_prime(128);
         let (capper, receiver) = self.clone().run_vdf_worker();
 
@@ -141,6 +141,7 @@ impl VDF {
                 self.upper_bound = proof.output.iterations;
             }
         }
+        self
     }
 
     /// Returns a VDFProof based on a VDFResult
@@ -148,6 +149,8 @@ impl VDF {
         let mut proof = Int::one();
         let mut r = Int::one();
         let mut b: Int;
+
+        debug!("VDF proof about to be generated from self: {:?}\n Variables being: result: {:?}, cap: {:?}", self, result, cap);
 
         for _ in 0..result.iterations {
             b = 2 * &r / &cap;
@@ -161,8 +164,8 @@ impl VDF {
             modulus: self.modulus.clone(),
             base: self.base.clone(),
             output: result,
-            cap,
-            proof,
+            cap: cap.clone(),
+            proof: proof.clone(),
         }
     }
 
@@ -188,10 +191,10 @@ impl VDF {
 
                     // Check if default, check for primality if else
                     if self_cap == 0 {
-                        self_cap = Generator::new_prime(128);
-                    } else if !Verification::verify_prime(self_cap.clone()) {
+                        self_cap = Generator::new_safe_prime(128);
+                    } else if !Verification::verify_safe_prime(self_cap.clone()) {
                         if worker_sender.send(Err(InvalidCapError)).is_err() {
-                            error!("Self-generated cap was not a prime! Check the implementation!");
+                            error!("Predefined cap was not a prime! Check the implementation!");
                         }
                         break;
                     }
@@ -211,7 +214,7 @@ impl VDF {
                         info!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
-                        if Verification::verify_prime(cap.clone()) {
+                        if Verification::verify_safe_prime(cap.clone()) {
                             // Generate proof on given cap
                             let proof = self.generate_proof(VDFResult { result, iterations }, cap);
                             debug!("Proof generated! {:?}", proof);
@@ -249,13 +252,13 @@ mod tests {
     #[test]
     fn is_deterministic() {
         let modulus = Int::from_str("91").unwrap();
-        let prime1 = Generator::new_prime(128);
-        let prime2 = Generator::new_prime(128);
+        let prime1 = Generator::new_safe_prime(128);
+        let prime2 = Generator::new_safe_prime(128);
         let diffiehellman = prime1 * prime2;
         let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
 
         // Create two VDFs with same inputs to check if they end up in the same result
-        let cap = Generator::new_prime(128);
+        let cap = Generator::new_safe_prime(128);
         let verifiers_vdf =
             VDF::new(modulus.clone(), root_hashed.clone(), 100).with_cap(cap.clone());
         let provers_vdf = VDF::new(modulus, root_hashed, 100).with_cap(cap);
@@ -283,19 +286,22 @@ mod tests {
 
     proptest! {
         #[test]
-        fn works_with_any_integer(s in 0usize..usize::MAX) {
+        fn works_with_any_prime_integer_as_cap(s in 0usize..usize::MAX) {
             let s_int: Int = Int::from(s);
-            let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
+            if Verification::verify_safe_prime(s_int.clone()) {
+                let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
 
-            let root_hashed = util::hash(&s.to_string(), &rsa_int);
+                let root_hashed = util::hash(&Generator::new_safe_prime(64).to_string(), &rsa_int);
 
-            let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int.clone());
-            let (_, receiver) = vdf.run_vdf_worker();
+                let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int.clone());
+                println!("{:?}", vdf);
+                let (_, receiver) = vdf.run_vdf_worker();
 
-            if let Ok(res) = receiver.recv() {
-                if let Ok(proof) = res {
-                    println!("{:?}", proof);
-                    assert!(proof.verify());
+                if let Ok(res) = receiver.recv() {
+                    if let Ok(proof) = res {
+                        println!("{:?}", proof);
+                        assert!(proof.verify());
+                    }
                 }
             }
         }
