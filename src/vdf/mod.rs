@@ -308,11 +308,9 @@ mod tests {
             &test_cap,
         );
 
-        let mut b = Int::one();
-        let mut r = Int::one();
+        let r = Int::one();
         let mut ebin = Int::one();
-        b = 2 * &r / &test_cap;
-        r = (2 * &r) % &test_cap;
+        let b = 2 * &r / &test_cap;
 
         ebin = &ebin.pow_mod(&Int::from(2), &rsa_int) * &test_base.pow_mod(&b, &rsa_int);
         ebin %= &rsa_int;
