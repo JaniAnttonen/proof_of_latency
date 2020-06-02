@@ -74,6 +74,31 @@ impl PartialEq for VDFProof {
 }
 
 impl VDFProof {
+    /// Returns a VDFProof based on a VDFResult
+    pub fn new(modulus: &Int, base: &Int, result: &VDFResult, cap: &Int) -> Self {
+        let mut proof = Int::one();
+        let mut r = Int::one();
+        let mut b: Int;
+
+        for _ in 0..result.iterations {
+            b = 2 * &r / cap;
+            r = (2 * &r) % cap;
+            proof =
+                proof.pow_mod(&Int::from(2), modulus) * base.pow_mod(&b, modulus);
+            proof %= modulus;
+        }
+
+        debug!("Proof generated, final state: r: {:?}, proof: {:?}", r, proof);
+
+        VDFProof {
+            modulus: modulus.clone(),
+            base: base.clone(),
+            output: result.clone(),
+            cap: cap.clone(),
+            proof: proof.clone(),
+        }
+    }
+
     /// A public function that a receiver can use to verify the correctness of the VDFProof
     pub fn verify(&self) -> bool {
         // Check first that the result isn't larger than the RSA base
@@ -144,31 +169,6 @@ impl VDF {
         self
     }
 
-    /// Returns a VDFProof based on a VDFResult
-    fn generate_proof(&self, result: VDFResult, cap: Int) -> VDFProof {
-        let mut proof = Int::one();
-        let mut r = Int::one();
-        let mut b: Int;
-
-        debug!("VDF proof about to be generated from self: {:?}\n Variables being: result: {:?}, cap: {:?}", self, result, cap);
-
-        for _ in 0..result.iterations {
-            b = 2 * &r / &cap;
-            r = (2 * &r) % &cap;
-            proof =
-                proof.pow_mod(&Int::from(2), &self.modulus) * self.base.pow_mod(&b, &self.modulus);
-            proof %= &self.modulus;
-        }
-
-        VDFProof {
-            modulus: self.modulus.clone(),
-            base: self.base.clone(),
-            output: result,
-            cap: cap.clone(),
-            proof: proof.clone(),
-        }
-    }
-
     /// A worker that does the actual calculation in a VDF. Returns a VDFProof based on initial
     /// parameters in the VDF.
     pub fn run_vdf_worker(self) -> (Sender<Int>, Receiver<Result<VDFProof, InvalidCapError>>) {
@@ -184,7 +184,7 @@ impl VDF {
 
                 if iterations == self.upper_bound || iterations == usize::MAX {
                     // Upper bound reached, stops iteration and calculates the proof
-                    debug!("Upper bound of {:?} reached, generating proof.", iterations);
+                    info!("Upper bound of {:?} reached, generating proof.", iterations);
 
                     // Copy pregenerated cap
                     let mut self_cap: Int = self.cap.clone();
@@ -200,7 +200,8 @@ impl VDF {
                     }
 
                     // Generate the VDF proof
-                    let proof = self.generate_proof(VDFResult { result, iterations }, self_cap);
+                    let vdf_result = VDFResult { result, iterations };
+                    let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &self_cap);
 
                     // Send proof to caller
                     if worker_sender.send(Ok(proof)).is_err() {
@@ -215,9 +216,12 @@ impl VDF {
 
                         // Check for primality
                         if Verification::verify_safe_prime(cap.clone()) {
-                            // Generate proof on given cap
-                            let proof = self.generate_proof(VDFResult { result, iterations }, cap);
+                            // Generate the VDF proof
+                            let vdf_result = VDFResult { result, iterations };
+                            let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &cap);
+
                             debug!("Proof generated! {:?}", proof);
+
                             // Send proof to caller
                             if worker_sender.send(Ok(proof)).is_err() {
                                 error!("Failed to send the proof to caller!");
@@ -244,8 +248,8 @@ impl VDF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
     use std::str::FromStr;
+    use proptest::prelude::*;
 
     const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
@@ -284,19 +288,39 @@ mod tests {
         }
     }
 
+    #[test]
+    fn proof_generation_should_not_output_1() {
+        let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
+        let test_base = Int::from_str("273975204758323482518647057650935910029033545998029740555442236630396252096456910679263590843517508134497658008476158127265573236243497472004339585881829574516389309280434908522535813874784132925778706216962484806893788484458866921522138079204310134658546314859280874834357982917353721208006721702257898821421485300922162212913879813354820758401899992407626681460926091914067738363972343377914312084771698845025136003678820078357252237830183129038642605158054307794910714600870478670992899152190065675937480994793580299676128729094577156848113371559032886218228855881073503523841233471830943401905740461433929135192").unwrap();
+        let test_result = Int::from_str("403642510913427162346289814221267076355601453217789745314752711072245370139545017132729754050733978350640501433581222579549785921751858432800504504624146523068045818752999039584099531047946165070360558276303055979412042063125980406973879783930289619240643955320574763282298513184754137066419829588200558889653756884714512569082291696579496147957009574856559159975430600764049595523214944721724618229087382990009118201426493970230094037871767314795807151411840859204603450495699032527972923029564045617141315511748646380995427511080164273051016861521306022130603410818165363571123776069334089378037317442063832513708").unwrap();
+        let test_cap = Int::from_str("320855013829071061657328929876806521327").unwrap();
+        let test_iterations: usize = 30;
+
+        let proof = VDFProof::new(&rsa_int, &test_base, &VDFResult { result: test_result, iterations: test_iterations }, &test_cap);
+
+        let mut b = Int::one();
+        let mut r = Int::one();
+        let mut ebin = Int::one();
+        b = 2 * &r / &test_cap;
+        r = (2 * &r) % &test_cap;
+        
+        ebin = &ebin.pow_mod(&Int::from(2), &rsa_int) * &test_base.pow_mod(&b, &rsa_int);
+        ebin %= &rsa_int;
+
+        assert_ne!(ebin, 1);
+        assert_ne!(proof.proof, 1);
+    }
+
     proptest! {
         #[test]
         fn works_with_any_prime_integer_as_cap(s in 0usize..usize::MAX) {
+            let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
             let s_int: Int = Int::from(s);
             if Verification::verify_safe_prime(s_int.clone()) {
-                let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
-
                 let root_hashed = util::hash(&Generator::new_safe_prime(64).to_string(), &rsa_int);
-
                 let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int.clone());
                 println!("{:?}", vdf);
                 let (_, receiver) = vdf.run_vdf_worker();
-
                 if let Ok(res) = receiver.recv() {
                     if let Ok(proof) = res {
                         println!("{:?}", proof);
