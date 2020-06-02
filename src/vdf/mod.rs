@@ -83,19 +83,21 @@ impl VDFProof {
         for _ in 0..result.iterations {
             b = 2 * &r / cap;
             r = (2 * &r) % cap;
-            proof =
-                proof.pow_mod(&Int::from(2), modulus) * base.pow_mod(&b, modulus);
+            proof = proof.pow_mod(&Int::from(2), modulus) * base.pow_mod(&b, modulus);
             proof %= modulus;
         }
 
-        debug!("Proof generated, final state: r: {:?}, proof: {:?}", r, proof);
+        debug!(
+            "Proof generated, final state: r: {:?}, proof: {:?}",
+            r, proof
+        );
 
         VDFProof {
             modulus: modulus.clone(),
             base: base.clone(),
             output: result.clone(),
             cap: cap.clone(),
-            proof: proof.clone(),
+            proof,
         }
     }
 
@@ -248,8 +250,8 @@ impl VDF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
     use proptest::prelude::*;
+    use std::str::FromStr;
 
     const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
@@ -296,14 +298,22 @@ mod tests {
         let test_cap = Int::from_str("320855013829071061657328929876806521327").unwrap();
         let test_iterations: usize = 30;
 
-        let proof = VDFProof::new(&rsa_int, &test_base, &VDFResult { result: test_result, iterations: test_iterations }, &test_cap);
+        let proof = VDFProof::new(
+            &rsa_int,
+            &test_base,
+            &VDFResult {
+                result: test_result,
+                iterations: test_iterations,
+            },
+            &test_cap,
+        );
 
         let mut b = Int::one();
         let mut r = Int::one();
         let mut ebin = Int::one();
         b = 2 * &r / &test_cap;
         r = (2 * &r) % &test_cap;
-        
+
         ebin = &ebin.pow_mod(&Int::from(2), &rsa_int) * &test_base.pow_mod(&b, &rsa_int);
         ebin %= &rsa_int;
 
