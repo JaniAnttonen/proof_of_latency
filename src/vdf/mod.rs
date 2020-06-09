@@ -186,7 +186,7 @@ impl VDF {
 
                 if iterations == self.upper_bound || iterations == usize::MAX {
                     // Upper bound reached, stops iteration and calculates the proof
-                    info!("Upper bound of {:?} reached, generating proof.", iterations);
+                    debug!("Upper bound of {:?} reached, generating proof.", iterations);
 
                     // Copy pregenerated cap
                     let mut self_cap: Int = self.cap.clone();
@@ -204,6 +204,7 @@ impl VDF {
                     // Generate the VDF proof
                     let vdf_result = VDFResult { result, iterations };
                     let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &self_cap);
+                    debug!("Proof generated! {:?}", proof);
 
                     // Send proof to caller
                     if worker_sender.send(Ok(proof)).is_err() {
@@ -214,14 +215,13 @@ impl VDF {
                     // Try receiving a cap from the other participant on each iteration
                     if let Ok(cap) = worker_receiver.try_recv() {
                         // Cap received
-                        info!("Received the cap {:?}, generating proof.", cap);
+                        debug!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
                         if Verification::verify_safe_prime(cap.clone()) {
                             // Generate the VDF proof
                             let vdf_result = VDFResult { result, iterations };
                             let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &cap);
-
                             debug!("Proof generated! {:?}", proof);
 
                             // Send proof to caller
@@ -325,7 +325,7 @@ mod tests {
             let s_int: Int = Int::from(s);
             if Verification::verify_safe_prime(s_int.clone()) {
                 let root_hashed = util::hash(&Generator::new_safe_prime(64).to_string(), &rsa_int);
-                let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int.clone());
+                let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int);
                 let (_, receiver) = vdf.run_vdf_worker();
                 if let Ok(res) = receiver.recv() {
                     if let Ok(proof) = res {

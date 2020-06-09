@@ -12,9 +12,13 @@ fn main() {
     debug!("Proof of latency instance created");
 
     let modulus = Int::from_str(proof_of_latency::RSA_2048).unwrap();
-    let prime1 = Generator::new_prime(128);
-    let prime2 = Generator::new_prime(128);
+    debug!("RSA modulus formed!");
+
+    let prime1 = Generator::new_uint(128);
+    let prime2 = Generator::new_uint(128);
     let diffiehellman = prime1 * prime2;
+    debug!("Key exchange done!");
+
     let base = vdf::util::hash(&diffiehellman.to_string(), &modulus);
     debug!("Variables created");
 
