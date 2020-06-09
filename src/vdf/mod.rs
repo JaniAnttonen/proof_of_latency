@@ -265,9 +265,8 @@ mod tests {
 
         // Create two VDFs with same inputs to check if they end up in the same result
         let cap = Generator::new_safe_prime(128);
-        let verifiers_vdf =
-            VDF::new(modulus.clone(), root_hashed.clone(), 100).with_cap(cap.clone());
-        let provers_vdf = VDF::new(modulus, root_hashed, 100).with_cap(cap);
+        let verifiers_vdf = VDF::new(modulus.clone(), root_hashed.clone(), 2).with_cap(cap.clone());
+        let provers_vdf = VDF::new(modulus, root_hashed, 2).with_cap(cap);
 
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
@@ -327,11 +326,9 @@ mod tests {
             if Verification::verify_safe_prime(s_int.clone()) {
                 let root_hashed = util::hash(&Generator::new_safe_prime(64).to_string(), &rsa_int);
                 let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int.clone());
-                println!("{:?}", vdf);
                 let (_, receiver) = vdf.run_vdf_worker();
                 if let Ok(res) = receiver.recv() {
                     if let Ok(proof) = res {
-                        println!("{:?}", proof);
                         assert!(proof.verify());
                     }
                 }

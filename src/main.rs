@@ -9,26 +9,31 @@ fn main() {
     env_logger::init();
 
     let mut pol = ProofOfLatency::default();
+    debug!("Proof of latency instance created");
 
     let modulus = Int::from_str(proof_of_latency::RSA_2048).unwrap();
-
     let prime1 = Generator::new_prime(128);
     let prime2 = Generator::new_prime(128);
     let diffiehellman = prime1 * prime2;
     let base = vdf::util::hash(&diffiehellman.to_string(), &modulus);
+    debug!("Variables created");
+
+    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 30);
+    debug!("Verifier's VDF created");
 
     pol.start(modulus.clone(), base.clone(), usize::MAX);
-    let verifiers_vdf = vdf::VDF::new(modulus, base, 30);
-
-    //pol.estimate_upper_bound(5000);
+    debug!("Proof of Latency calculation started");
 
     let (_, receiver) = verifiers_vdf.run_vdf_worker();
+    debug!("Verifier's VDF worker running");
+
     if let Ok(res) = receiver.recv() {
+        debug!("Got the proof from verifier!");
         if let Ok(proof) = res {
             pol.receive(proof);
         }
     }
 
-    info!("{:?}", pol);
+    debug!("{:?}", pol);
     //p2p::run().unwrap();
 }
