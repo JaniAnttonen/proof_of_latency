@@ -194,6 +194,7 @@ impl VDF {
                     // Check if default, check for primality if else
                     if self_cap == 0 {
                         self_cap = Generator::new_safe_prime(128);
+                        debug!("Cap generated: {:?}", self_cap);
                     } else if !Verification::verify_safe_prime(self_cap.clone()) {
                         if worker_sender.send(Err(InvalidCapError)).is_err() {
                             error!("Predefined cap was not a prime! Check the implementation!");
@@ -318,14 +319,53 @@ mod tests {
         assert_ne!(proof.proof, 1);
     }
 
+    #[test]
+    fn proof_generation_should_be_same_between_predetermined_and_received_input() {
+        let modulus = Int::from_str(RSA_2048).unwrap();
+        let prime1 = Generator::new_safe_prime(128);
+        let prime2 = Generator::new_safe_prime(128);
+        let diffiehellman = prime1 * prime2;
+        let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
+
+        let cap = Generator::new_safe_prime(128);
+        let vdf = VDF::new(modulus.clone(), root_hashed.clone(), usize::MAX);
+
+        let (capper, receiver) = vdf.run_vdf_worker();
+
+        thread::sleep(time::Duration::from_millis(1000));
+
+        let mut first_proof = VDFProof::default();
+
+        let cap_error = capper.send(cap.clone()).is_err();
+        assert!(!cap_error);
+
+        if let Ok(res) = receiver.recv() {
+            if let Ok(proof) = res {
+                println!("{:?}", proof);
+                first_proof = proof;
+            }
+        }
+
+        let vdf2 = VDF::new(modulus, root_hashed, first_proof.output.iterations)
+            .with_cap(first_proof.cap.clone());
+
+        let (_, receiver2) = vdf2.run_vdf_worker();
+
+        if let Ok(res2) = receiver2.recv() {
+            if let Ok(proof2) = res2 {
+                assert_eq!(proof2, first_proof);
+            }
+        }
+    }
+
     proptest! {
         #[test]
         fn works_with_any_prime_integer_as_cap(s in 0usize..usize::MAX) {
             let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
             let s_int: Int = Int::from(s);
             if Verification::verify_safe_prime(s_int.clone()) {
-                let root_hashed = util::hash(&Generator::new_safe_prime(64).to_string(), &rsa_int);
-                let vdf = VDF::new(rsa_int, root_hashed, 3).with_cap(s_int);
+                let root_hashed = util::hash(&Generator::new_safe_prime(128).to_string(), &rsa_int);
+                let vdf = VDF::new(rsa_int, root_hashed, 1).with_cap(s_int);
                 let (_, receiver) = vdf.run_vdf_worker();
                 if let Ok(res) = receiver.recv() {
                     if let Ok(proof) = res {
