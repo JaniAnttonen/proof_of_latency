@@ -329,21 +329,22 @@ mod tests {
         }
     }
 
-    // proptest! {
-    //     #[test]
-    //     fn works_with_any_prime_integer_as_cap(t in 1usize..100) {
-    //         let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
-    //         let root_hashed = util::hash(&Generator::new_safe_prime(128).to_string(), &rsa_int);
-    //         let cap: Int = Generator::new_safe_prime(64);
-    //
-    //         let vdf = VDF::new(rsa_int, root_hashed, t).with_cap(cap);
-    //         let (_, receiver) = vdf.run_vdf_worker();
-    //         if let Ok(res) = receiver.recv() {
-    //             if let Ok(proof) = res {
-    //                 assert!(proof.proof != 1);
-    //                 assert!(proof.verify());
-    //             }
-    //         }
-    //     }
-    // }
+    proptest! {
+        #[test]
+        fn works_with_any_prime_integer_as_cap(t in 1usize..100) {
+            let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
+            let root_hashed = util::hash(&Generator::new_safe_prime(128).to_string(), &rsa_int);
+            let cap: Int = Generator::new_safe_prime(64);
+
+            let vdf = VDF::new(rsa_int, root_hashed, t).with_cap(cap);
+            let (_, receiver) = vdf.run_vdf_worker();
+
+            if let Ok(res) = receiver.recv() {
+                if let Ok(proof) = res {
+                    println!("Proof {:?}", proof);
+                    assert!(proof.verify());
+                }
+            }
+        }
+    }
 }

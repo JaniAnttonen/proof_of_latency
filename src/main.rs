@@ -22,7 +22,7 @@ fn main() {
     let base = vdf::util::hash(&diffiehellman.to_string(), &modulus);
     debug!("Variables created");
 
-    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 30);
+    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 50217);
     debug!("Verifier's VDF created");
 
     pol.start(modulus.clone(), base.clone(), usize::MAX);
