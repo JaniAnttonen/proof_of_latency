@@ -118,31 +118,4 @@ mod tests {
         assert!(pol.receiver.is_some());
         assert!(pol2.receiver.is_none());
     }
-
-    #[test]
-    fn is_deterministic() {
-        let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Generator::new_prime(128);
-        let prime2 = Generator::new_prime(128);
-        let diffiehellman = prime1 * prime2;
-        let root_hashed = vdf::util::hash(&diffiehellman.to_string(), &modulus);
-
-        let mut pol = ProofOfLatency::default();
-        pol.start(modulus.clone(), root_hashed.clone(), 100);
-        let verifiers_vdf = vdf::VDF::new(modulus, root_hashed, 100);
-
-        let (_, receiver) = verifiers_vdf.run_vdf_worker();
-        if let Ok(res) = receiver.recv() {
-            if let Ok(proof) = res {
-                pol.receive(proof);
-            }
-        }
-
-        assert!(pol.prover_result.is_some());
-        assert!(pol.verifier_result.is_some());
-        assert_eq!(
-            pol.verifier_result.unwrap().output,
-            pol.prover_result.unwrap().output
-        );
-    }
 }
