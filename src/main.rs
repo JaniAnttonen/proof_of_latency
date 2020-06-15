@@ -14,16 +14,16 @@ fn main() {
     let modulus = Int::from_str(proof_of_latency::RSA_2048).unwrap();
     debug!("RSA modulus formed!");
 
-    let prime = Generator::new_uint(128);
+    let prime = Generator::new_safe_prime(32);
     debug!("Key exchange done!");
 
     let base = vdf::util::hash(&prime.to_string(), &modulus);
     debug!("Variables created");
 
-    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 1028);
+    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 128);
     debug!("Verifier's VDF created");
 
-    pol.start(modulus.clone(), base.clone(), u32::MAX);
+    pol.start(modulus, base, u32::MAX);
     debug!("Proof of Latency calculation started");
 
     let (_, receiver) = verifiers_vdf.run_vdf_worker();
@@ -36,13 +36,18 @@ fn main() {
         }
     }
 
-    let proofs_correct =
-        pol.prover_result.unwrap().verify() && pol.verifier_result.unwrap().verify();
+    let ver_proof_correct = pol.verifier_result.unwrap().verify();
+    let pro_proof_correct = pol.prover_result.unwrap().verify();
 
-    if proofs_correct {
-        debug!("Proofs correct!");
+    if ver_proof_correct {
+        info!("Verifier proof correct!");
     } else {
-        error!("Either the prover's or verifier's proof was not correct!");
+        error!("Verifier proof incorrect!");
     }
-    //p2p::run().unwrap();
+
+    if pro_proof_correct {
+        info!("Prover proof correct!");
+    } else {
+        error!("Prover proof incorrect!");
+    }
 }
