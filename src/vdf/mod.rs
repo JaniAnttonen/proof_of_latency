@@ -157,9 +157,7 @@ impl VDF {
 
     /// Validates that cap is not below upper bound and is prime.
     fn validate_cap(&self, cap: &Int, upper_bound: u32) -> bool {
-        Verification::verify_safe_prime(cap.clone())
-        // && cap.bit_length() < upper_bound
-        // && cap.bit_length() >= 64
+        Verification::verify_prime(cap.clone()) && cap.bit_length() < upper_bound
     }
 
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
