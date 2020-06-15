@@ -22,7 +22,7 @@ fn main() {
     let base = vdf::util::hash(&diffiehellman.to_string(), &modulus);
     debug!("Variables created");
 
-    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 50217);
+    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 5);
     debug!("Verifier's VDF created");
 
     pol.start(modulus.clone(), base.clone(), usize::MAX);
@@ -38,6 +38,12 @@ fn main() {
         }
     }
 
-    debug!("{:?}", pol);
+    let proofs_correct = pol.prover_result.unwrap().verify() && pol.verifier_result.unwrap().verify();
+
+    if proofs_correct {
+        debug!("Proofs correct!");
+    } else {
+       error!("Either the prover's or verifier's proof was not correct!"); 
+    }
     //p2p::run().unwrap();
 }
