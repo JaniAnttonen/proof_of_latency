@@ -324,7 +324,7 @@ mod tests {
             &base,
             &VDFResult {
                 iterations: 3,
-                result: result,
+                result,
             },
             &cap,
         );
