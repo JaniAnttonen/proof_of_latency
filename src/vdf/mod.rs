@@ -109,7 +109,7 @@ impl VDFProof {
             return false;
         }
         //self.validate();
-        let r = Int::from(self.output.iterations).pow_mod(&Int::from(2), &self.cap);
+        let r = Int::from(2).pow_mod(&Int::from(self.output.iterations), &self.cap);
         self.output.result
             == (self.proof.pow_mod(&self.cap, &self.modulus) * self.base.pow_mod(&r, &self.modulus))
                 % &self.modulus
@@ -318,6 +318,9 @@ mod tests {
 
         result = iter_vdf(result, &modulus, &two);
         assert_eq!(result, Int::from(16));
+
+        // result = iter_vdf(result, &modulus, &two);
+        // assert_eq!(result, Int::from(1));
 
         let proof = VDFProof::new(
             &modulus,
