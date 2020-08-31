@@ -29,7 +29,7 @@ impl Error for InvalidCapError {
 #[derive(Debug, Clone, Default)]
 pub struct VDFResult {
     pub result: Int,
-    pub iterations: usize,
+    pub iterations: u32,
 }
 
 /// Traits that make calculating differences between VDFResults easier
@@ -79,11 +79,12 @@ impl VDFProof {
         let mut proof = Int::one();
         let mut r = Int::one();
         let mut b: Int;
+        let two: &Int = &Int::from(2);
 
         for _ in 0..result.iterations {
-            b = 2 * &r / cap;
-            r = (2 * &r) % cap;
-            proof = proof.pow_mod(&Int::from(2), modulus) * base.pow_mod(&b, modulus);
+            b = two * &r / cap;
+            r = (two * &r) % cap;
+            proof = proof.pow_mod(two, modulus) * base.pow_mod(&b, modulus);
             proof %= modulus;
         }
 
@@ -107,7 +108,8 @@ impl VDFProof {
         if self.proof > self.modulus {
             return false;
         }
-        let r = Int::from(self.output.iterations).pow_mod(&Int::from(2), &self.cap);
+        //self.validate();
+        let r = Int::from(2).pow_mod(&Int::from(self.output.iterations), &self.cap);
         self.output.result
             == (self.proof.pow_mod(&self.cap, &self.modulus) * self.base.pow_mod(&r, &self.modulus))
                 % &self.modulus
@@ -118,7 +120,7 @@ impl VDFProof {
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
-    pub fn abs_difference(&self, other: &VDFProof) -> usize {
+    pub fn abs_difference(&self, other: &VDFProof) -> u32 {
         if self.output > other.output {
             self.output.iterations - other.output.iterations
         } else {
@@ -132,13 +134,17 @@ impl VDFProof {
 pub struct VDF {
     pub modulus: Int,
     pub base: Int,
-    pub upper_bound: usize,
+    pub upper_bound: u32,
     pub cap: Int,
+}
+
+pub fn iter_vdf(result: Int, modulus: &Int, to_power: &Int) -> Int {
+    result.pow_mod(to_power, modulus)
 }
 
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
-    pub fn new(modulus: Int, base: Int, upper_bound: usize) -> Self {
+    pub fn new(modulus: Int, base: Int, upper_bound: u32) -> Self {
         Self {
             modulus,
             base,
@@ -151,6 +157,11 @@ impl VDF {
     pub fn with_cap(mut self, cap: Int) -> Self {
         self.cap = cap;
         self
+    }
+
+    /// Validates that cap is not below upper bound and is prime.
+    fn validate_cap(&self, cap: &Int, upper_bound: u32) -> bool {
+        Verification::verify_prime(cap.clone()) && cap.bit_length() < upper_bound
     }
 
     /// Estimates the maximum number of sequential calculations that can fit in the fiven ms_bound
@@ -179,12 +190,13 @@ impl VDF {
 
         thread::spawn(move || {
             let mut result = self.base.clone();
-            let mut iterations: usize = 0;
+            let two = Int::from(2);
+            let mut iterations: u32 = 0;
             loop {
-                result = result.pow_mod(&Int::from(2), &self.modulus);
+                result = iter_vdf(result, &self.modulus, &two);
                 iterations += 1;
 
-                if iterations == self.upper_bound || iterations == usize::MAX {
+                if iterations == self.upper_bound || iterations == u32::MAX {
                     // Upper bound reached, stops iteration and calculates the proof
                     debug!("Upper bound of {:?} reached, generating proof.", iterations);
 
@@ -195,9 +207,9 @@ impl VDF {
                     if self_cap == 0 {
                         self_cap = Generator::new_safe_prime(128);
                         debug!("Cap generated: {:?}", self_cap);
-                    } else if !Verification::verify_safe_prime(self_cap.clone()) {
+                    } else if !self.validate_cap(&self_cap, iterations) {
                         if worker_sender.send(Err(InvalidCapError)).is_err() {
-                            error!("Predefined cap was not a prime! Check the implementation!");
+                            error!("Predefined cap was not a prime or its length is below upper_bound! Check the implementation!");
                         }
                         break;
                     }
@@ -211,6 +223,7 @@ impl VDF {
                     if worker_sender.send(Ok(proof)).is_err() {
                         error!("Failed to send the proof to caller!");
                     }
+
                     break;
                 } else {
                     // Try receiving a cap from the other participant on each iteration
@@ -219,7 +232,7 @@ impl VDF {
                         debug!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
-                        if Verification::verify_safe_prime(cap.clone()) {
+                        if self.validate_cap(&cap, iterations) {
                             // Generate the VDF proof
                             let vdf_result = VDFResult { result, iterations };
                             let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &cap);
@@ -259,15 +272,14 @@ mod tests {
     #[test]
     fn is_deterministic() {
         let modulus = Int::from_str("91").unwrap();
-        let prime1 = Generator::new_safe_prime(128);
-        let prime2 = Generator::new_safe_prime(128);
-        let diffiehellman = prime1 * prime2;
-        let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
+        let prime = Generator::new_safe_prime(128);
+        let root_hashed = util::hash(&prime.to_string(), &modulus);
 
         // Create two VDFs with same inputs to check if they end up in the same result
-        let cap = Generator::new_safe_prime(128);
-        let verifiers_vdf = VDF::new(modulus.clone(), root_hashed.clone(), 2).with_cap(cap.clone());
-        let provers_vdf = VDF::new(modulus, root_hashed, 2).with_cap(cap);
+        let cap = Int::from(7);
+        let verifiers_vdf =
+            VDF::new(modulus.clone(), root_hashed.clone(), 32).with_cap(cap.clone());
+        let provers_vdf = VDF::new(modulus, root_hashed, 32).with_cap(cap);
 
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
@@ -291,19 +303,50 @@ mod tests {
     }
 
     #[test]
+    fn vdf_iter_should_be_correct() {
+        let modulus = Int::from(17);
+        let base = Int::from(11);
+        let two = Int::from(2);
+        let cap = Int::from(7);
+        let mut result = base.clone();
+
+        result = iter_vdf(result, &modulus, &two);
+        assert_eq!(result, two);
+
+        result = iter_vdf(result, &modulus, &two);
+        assert_eq!(result, Int::from(4));
+
+        result = iter_vdf(result, &modulus, &two);
+        assert_eq!(result, Int::from(16));
+
+        // result = iter_vdf(result, &modulus, &two);
+        // assert_eq!(result, Int::from(1));
+
+        let proof = VDFProof::new(
+            &modulus,
+            &base,
+            &VDFResult {
+                iterations: 3,
+                result,
+            },
+            &cap,
+        );
+        println!("{:?}", proof);
+        assert!(proof.verify());
+    }
+
+    #[test]
     fn proof_generation_should_be_same_between_predetermined_and_received_input() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Generator::new_safe_prime(128);
-        let prime2 = Generator::new_safe_prime(128);
-        let diffiehellman = prime1 * prime2;
-        let root_hashed = util::hash(&diffiehellman.to_string(), &modulus);
+        let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
+        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
 
-        let cap = Generator::new_safe_prime(128);
-        let vdf = VDF::new(modulus.clone(), root_hashed.clone(), usize::MAX);
+        let cap = Generator::new_safe_prime(16);
+        let vdf = VDF::new(modulus.clone(), root_hashed.clone(), u32::MAX);
 
         let (capper, receiver) = vdf.run_vdf_worker();
 
-        thread::sleep(time::Duration::from_millis(1000));
+        thread::sleep(time::Duration::from_millis(10));
 
         let mut first_proof = VDFProof::default();
 
@@ -325,22 +368,30 @@ mod tests {
         if let Ok(res2) = receiver2.recv() {
             if let Ok(proof2) = res2 {
                 assert_eq!(proof2, first_proof);
+                //assert!(first_proof.verify());
+                //assert!(proof2.verify());
+                println!("Proof1: {:?}, Proof2: {:?}", first_proof, proof2);
             }
         }
     }
 
     // proptest! {
     //     #[test]
-    //     fn works_with_any_prime_integer_as_cap(t in 1usize..100) {
+    //     fn works_with_any_prime_integer_as_cap(t in 1u32..32) {
+    //         let cap_bit_length: usize = 16;
+    //         let cap_bit_length_u32: u32 = 16;
+    //         prop_assume!(t > cap_bit_length_u32);
+
     //         let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
-    //         let root_hashed = util::hash(&Generator::new_safe_prime(128).to_string(), &rsa_int);
-    //         let cap: Int = Generator::new_safe_prime(64);
-    //
+    //         let root_hashed = util::hash(&Generator::new_safe_prime(8).to_string(), &rsa_int);
+    //         let cap: Int = Generator::new_safe_prime(cap_bit_length);
+
     //         let vdf = VDF::new(rsa_int, root_hashed, t).with_cap(cap);
     //         let (_, receiver) = vdf.run_vdf_worker();
+
     //         if let Ok(res) = receiver.recv() {
     //             if let Ok(proof) = res {
-    //                 assert!(proof.proof != 1);
+    //                 println!("Proof {:?}", proof);
     //                 assert!(proof.verify());
     //             }
     //         }

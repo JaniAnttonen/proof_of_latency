@@ -15,7 +15,7 @@ pub enum STATE {}
 pub struct ProofOfLatency {
     pub modulus: Option<Int>,
     pub base: Option<Int>,
-    pub upper_bound: Option<usize>,
+    pub upper_bound: Option<u32>,
     capper: Option<Sender<Int>>,
     receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
     pub prover_result: Option<vdf::VDFProof>,
@@ -37,7 +37,7 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn start(&mut self, modulus: Int, base: Int, upper_bound: usize) {
+    pub fn start(&mut self, modulus: Int, base: Int, upper_bound: u32) {
         self.modulus = Some(modulus.clone());
         self.base = Some(base.clone());
         self.upper_bound = Some(upper_bound);
@@ -71,8 +71,8 @@ impl ProofOfLatency {
                         proof.output.iterations, proof.output.result
                     );
 
-                    let iter_prover: usize = proof.output.iterations;
-                    let iter_verifier: usize = their_proof.output.iterations;
+                    let iter_prover: u32 = proof.output.iterations;
+                    let iter_verifier: u32 = their_proof.output.iterations;
                     let difference: Int = if iter_prover > iter_verifier {
                         Int::from(iter_prover - iter_verifier)
                     } else {
@@ -104,14 +104,11 @@ mod tests {
     #[test]
     fn start_modifies_self() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let prime1 = Generator::new_prime(128);
-        let prime2 = Generator::new_prime(128);
-        let diffiehellman = prime1 * prime2;
-
+        let prime = Generator::new_prime(128);
         let mut pol = ProofOfLatency::default();
 
         let pol2 = ProofOfLatency::default();
-        pol.start(modulus, diffiehellman, usize::MAX);
+        pol.start(modulus, prime, u32::MAX);
 
         assert!(pol.capper.is_some());
         assert!(pol2.capper.is_none());
