@@ -1,12 +1,14 @@
 #[macro_use]
 extern crate log;
-use proof_of_latency::{vdf, ProofOfLatency};
+use proof_of_latency::{p2p, vdf, ProofOfLatency};
 use ramp::Int;
 use ramp_primes::Generator;
 use std::str::FromStr;
 
 fn main() {
     env_logger::init();
+
+    p2p::run();
 
     let mut pol = ProofOfLatency::default();
     debug!("Proof of latency instance created");
