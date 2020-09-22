@@ -223,7 +223,7 @@ impl VDF {
                         debug!("Cap generated: {:?}", self_cap);
                     } else if !self.validate_cap(&self_cap, iterations) {
                         if worker_sender.send(Err(InvalidCapError)).is_err() {
-                            error!("Predefined cap was not a prime or its length is below upper_bound! Check the implementation!");
+                            error!("Cap not correct!");
                         }
                         break;
                     }
