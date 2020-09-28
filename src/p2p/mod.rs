@@ -18,7 +18,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-//! A basic key value store demonstrating libp2p and the mDNS and Kademlia protocols.
+//! A basic key value store demonstrating libp2p and the mDNS and Kademlia
+//! protocols.
 //!
 //! 1. Using two terminal windows, start two instances. If you local network
 //!    allows mDNS, they will automatically connect.
@@ -44,8 +45,8 @@ use async_std::{io, task};
 use futures::prelude::*;
 use libp2p::kad::record::store::MemoryStore;
 use libp2p::kad::{
-    record::Key, AddProviderOk, Kademlia, KademliaEvent, PeerRecord, PutRecordOk, QueryResult,
-    Quorum, Record,
+    record::Key, AddProviderOk, Kademlia, KademliaEvent, PeerRecord,
+    PutRecordOk, QueryResult, Quorum, Record,
 };
 use libp2p::{
     build_development_transport, identity,
@@ -163,7 +164,9 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     task::block_on(future::poll_fn(move |cx: &mut Context<'_>| {
         loop {
             match stdin.try_poll_next_unpin(cx)? {
-                Poll::Ready(Some(line)) => handle_input_line(&mut swarm.kademlia, line),
+                Poll::Ready(Some(line)) => {
+                    handle_input_line(&mut swarm.kademlia, line)
+                }
                 Poll::Ready(None) => panic!("Stdin closed"),
                 Poll::Pending => break,
             }

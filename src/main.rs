@@ -8,7 +8,7 @@ use std::str::FromStr;
 fn main() {
     env_logger::init();
 
-    p2p::run();
+    // p2p::run();
 
     let mut pol = ProofOfLatency::default();
     debug!("Proof of latency instance created");
