@@ -57,7 +57,7 @@ impl Eq for VDFResult {}
 #[derive(Debug, Clone, Default)]
 pub struct VDFProof {
     pub modulus: Int,
-    pub base: Int,
+    pub generator: Int,
     pub output: VDFResult,
     pub cap: Int,
     pub proof: Int,
@@ -68,14 +68,14 @@ impl PartialEq for VDFProof {
         self.output == other.output
             && self.proof == other.proof
             && self.modulus == other.modulus
-            && self.base == other.base
+            && self.generator == other.generator
             && self.cap == other.cap
     }
 }
 
 impl VDFProof {
     /// Returns a VDFProof based on a VDFResult
-    pub fn new(modulus: &Int, base: &Int, result: &VDFResult, cap: &Int) -> Self {
+    pub fn new(modulus: &Int, generator: &Int, result: &VDFResult, cap: &Int) -> Self {
         let mut proof = Int::one();
         let mut r = Int::one();
         let mut b: Int;
@@ -84,7 +84,7 @@ impl VDFProof {
         for _ in 0..result.iterations {
             b = two * &r / cap;
             r = (two * &r) % cap;
-            proof = proof.pow_mod(two, modulus) * base.pow_mod(&b, modulus);
+            proof = proof.pow_mod(two, modulus) * generator.pow_mod(&b, modulus);
             proof %= modulus;
         }
 
@@ -95,7 +95,7 @@ impl VDFProof {
 
         VDFProof {
             modulus: modulus.clone(),
-            base: base.clone(),
+            generator: generator.clone(),
             output: result.clone(),
             cap: cap.clone(),
             proof,
@@ -104,19 +104,20 @@ impl VDFProof {
 
     /// A public function that a receiver can use to verify the correctness of the VDFProof
     pub fn verify(&self) -> bool {
-        // Check first that the result isn't larger than the RSA base
+        // Check first that the result isn't larger than the RSA generator
         if self.proof > self.modulus {
             return false;
         }
         //self.validate();
         let r = Int::from(2).pow_mod(&Int::from(self.output.iterations), &self.cap);
         self.output.result
-            == (self.proof.pow_mod(&self.cap, &self.modulus) * self.base.pow_mod(&r, &self.modulus))
+            == (self.proof.pow_mod(&self.cap, &self.modulus)
+                * self.generator.pow_mod(&r, &self.modulus))
                 % &self.modulus
     }
 
     pub fn validate(&self) -> bool {
-        self.modulus.gcd(&self.base) == 1 && self.modulus.gcd(&self.cap) == 1
+        self.modulus.gcd(&self.generator) == 1 && self.modulus.gcd(&self.cap) == 1
     }
 
     /// Helper function for calculating the difference in iterations between two VDFProofs
@@ -133,7 +134,7 @@ impl VDFProof {
 #[derive(Debug, Clone)]
 pub struct VDF {
     pub modulus: Int,
-    pub base: Int,
+    pub generator: Int,
     pub upper_bound: u32,
     pub cap: Int,
 }
@@ -144,10 +145,10 @@ pub fn iter_vdf(result: Int, modulus: &Int, to_power: &Int) -> Int {
 
 impl VDF {
     /// VDF builder with default options. Can be chained with estimate_upper_bound
-    pub fn new(modulus: Int, base: Int, upper_bound: u32) -> Self {
+    pub fn new(modulus: Int, generator: Int, upper_bound: u32) -> Self {
         Self {
             modulus,
-            base,
+            generator,
             upper_bound,
             cap: Int::zero(),
         }
@@ -189,7 +190,7 @@ impl VDF {
         let (worker_sender, caller_receiver) = channel();
 
         thread::spawn(move || {
-            let mut result = self.base.clone();
+            let mut result = self.generator.clone();
             let two = Int::from(2);
             let mut iterations: u32 = 0;
             loop {
@@ -216,7 +217,8 @@ impl VDF {
 
                     // Generate the VDF proof
                     let vdf_result = VDFResult { result, iterations };
-                    let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &self_cap);
+                    let proof =
+                        VDFProof::new(&self.modulus, &self.generator, &vdf_result, &self_cap);
                     debug!("Proof generated! {:?}", proof);
 
                     // Send proof to caller
@@ -235,7 +237,8 @@ impl VDF {
                         if self.validate_cap(&cap, iterations) {
                             // Generate the VDF proof
                             let vdf_result = VDFResult { result, iterations };
-                            let proof = VDFProof::new(&self.modulus, &self.base, &vdf_result, &cap);
+                            let proof =
+                                VDFProof::new(&self.modulus, &self.generator, &vdf_result, &cap);
                             debug!("Proof generated! {:?}", proof);
 
                             // Send proof to caller
@@ -264,7 +267,6 @@ impl VDF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
     use std::str::FromStr;
 
     const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
@@ -305,10 +307,10 @@ mod tests {
     #[test]
     fn vdf_iter_should_be_correct() {
         let modulus = Int::from(17);
-        let base = Int::from(11);
+        let generator = Int::from(11);
         let two = Int::from(2);
         let cap = Int::from(7);
-        let mut result = base.clone();
+        let mut result = generator.clone();
 
         result = iter_vdf(result, &modulus, &two);
         assert_eq!(result, two);
@@ -324,7 +326,7 @@ mod tests {
 
         let proof = VDFProof::new(
             &modulus,
-            &base,
+            &generator,
             &VDFResult {
                 iterations: 3,
                 result,
@@ -374,27 +376,4 @@ mod tests {
             }
         }
     }
-
-    // proptest! {
-    //     #[test]
-    //     fn works_with_any_prime_integer_as_cap(t in 1u32..32) {
-    //         let cap_bit_length: usize = 16;
-    //         let cap_bit_length_u32: u32 = 16;
-    //         prop_assume!(t > cap_bit_length_u32);
-
-    //         let rsa_int: Int = Int::from_str(RSA_2048).unwrap();
-    //         let root_hashed = util::hash(&Generator::new_safe_prime(8).to_string(), &rsa_int);
-    //         let cap: Int = Generator::new_safe_prime(cap_bit_length);
-
-    //         let vdf = VDF::new(rsa_int, root_hashed, t).with_cap(cap);
-    //         let (_, receiver) = vdf.run_vdf_worker();
-
-    //         if let Ok(res) = receiver.recv() {
-    //             if let Ok(proof) = res {
-    //                 println!("Proof {:?}", proof);
-    //                 assert!(proof.verify());
-    //             }
-    //         }
-    //     }
-    // }
 }
