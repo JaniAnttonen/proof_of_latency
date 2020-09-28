@@ -207,8 +207,8 @@ impl VDF {
                 iterations += 1;
 
                 if iterations == self.upper_bound || iterations == u32::MAX {
-                    // Upper bound reached, stops iteration and calculates the
-                    // proof
+                    // Upper bound reached, stops iteration
+                    // and calculates the proof
                     debug!(
                         "Upper bound of {:?} reached, generating proof.",
                         iterations
