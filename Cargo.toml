@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 ramp = "=0.5.8"
 ramp-primes = "0.4.1"
-sha3 = "0.8.2"
+blake3 = "0.3.6"
 env_logger = "0.7.1" 
 log = "0.4.8"
 libp2p = "0.28.1"
