@@ -1,3 +1,5 @@
+#[macro_use]
+use serde::{Serialize, Deserialize};
 use ramp::Int;
 use ramp_primes::Generator;
 use ramp_primes::Verification;
@@ -55,7 +57,7 @@ impl PartialEq for VDFResult {
 impl Eq for VDFResult {}
 
 /// Proof of an already calculated VDF that gets passed around between peers
-#[derive(Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct VDFProof {
     pub modulus: Int,
     pub generator: Int,
@@ -136,7 +138,7 @@ impl VDFProof {
 }
 
 /// VDF is an options struct for calculating VDFProofs
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VDF {
     pub modulus: Int,
     pub generator: Int,
@@ -349,9 +351,6 @@ mod tests {
         result = iter_vdf(result, &modulus, &two);
         assert_eq!(result, Int::from(16));
 
-        // result = iter_vdf(result, &modulus, &two);
-        // assert_eq!(result, Int::from(1));
-
         let proof = VDFProof::new(
             &modulus,
             &generator,
@@ -400,10 +399,35 @@ mod tests {
         if let Ok(res2) = receiver2.recv() {
             if let Ok(proof2) = res2 {
                 assert_eq!(proof2, first_proof);
-                //assert!(first_proof.verify());
-                //assert!(proof2.verify());
+                assert!(first_proof.verify());
+                assert!(proof2.verify());
                 println!("Proof1: {:?}, Proof2: {:?}", first_proof, proof2);
             }
         }
+    }
+
+    #[test]
+    fn should_serialize_and_deserialize() {
+        let modulus = Int::from(17);
+        let generator = Int::from(11);
+        let two = Int::from(2);
+        let cap = Int::from(7);
+        let mut result = generator.clone();
+
+        result = iter_vdf(result, &modulus, &two);
+
+        let proof = VDFProof::new(
+            &modulus,
+            &generator,
+            &VDFResult {
+                iterations: 1,
+                result,
+            },
+            &cap,
+        );
+        let serialized_proof = serde_json::to_string(&proof);
+        let unserialized_proof = serde_json::from_str(&serialized_proof);
+
+        assert_eq!(unserialized_proof, proof);
     }
 }

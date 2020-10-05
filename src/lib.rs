@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate log;
 extern crate sm;
-use sm::sm;
 
 use ramp::Int;
+use sm::sm;
 use std::sync::mpsc::{Receiver, Sender};
 
 pub mod p2p;

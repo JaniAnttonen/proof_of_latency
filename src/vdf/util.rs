@@ -14,3 +14,20 @@ pub fn hash(s: &str, rsa_mod: &Int) -> Int {
     }
     ans % rsa_mod
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn output_is_in_rsa_mod(modulus in 0u32..u32::MAX) {
+            let mod_int: Int = Int::from(modulus);
+            let test_string = "ASDFJKJÖGAGLELJ";
+            let output: Int = hash(test_string, &mod_int);
+            assert!(output > Int::zero());
+            assert!(output < mod_int);
+        }
+    }
+}
