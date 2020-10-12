@@ -1,14 +1,10 @@
-#[macro_use]
-extern crate serde;
-extern crate serde_json;
-
 use ramp::Int;
 use ramp_primes::Generator;
 use ramp_primes::Verification;
 use rayon::iter::ParallelBridge;
 use rayon::prelude::ParallelIterator;
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Serialize, Serializer};
+// use serde::ser::SerializeStruct;
+// use serde::{Deserialize, Serialize, Serializer};
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
@@ -16,10 +12,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{thread, time};
 
 pub mod util;
-
-const ZERO: Int = Int::zero();
-const ONE: Int = Int::from(1);
-const TWO: Int = Int::from(2);
 
 /// InvalidCapError is returned when a non-prime cap is received in the
 /// vdf_worker
@@ -66,40 +58,36 @@ impl PartialEq for VDFResult {
 
 impl Eq for VDFResult {}
 
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct ProofIterable {
+    pub pi: Int,
+    pub r: Int,
+    pub b: Int,
+    pub i: u32,
+}
+
 /// Proof of an already calculated VDF that gets passed around between peers
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct VDFProof {
     pub modulus: Int,
     pub generator: Int,
     pub output: VDFResult,
     pub cap: Int,
-    pub proof: Int,
-    r: Int,
-    b: Int,
-    i: u32,
-}
-
-impl PartialEq for VDFProof {
-    fn eq(&self, other: &Self) -> bool {
-        self.output == other.output
-            && self.proof == other.proof
-            && self.modulus == other.modulus
-            && self.generator == other.generator
-            && self.cap == other.cap
-    }
+    pub iterable: ProofIterable,
+    two: Int,
 }
 
 impl Iterator for VDFProof {
-    type Item = Int;
-    fn next(&mut self) -> Option<Int> {
-        self.b = &TWO * &self.r / self.cap;
-        self.r = (&TWO * &self.r) % self.cap;
-        self.proof = self.proof.pow_mod(&TWO, &self.modulus)
-            * self.generator.pow_mod(&self.b, &self.modulus);
-        self.proof %= self.modulus;
-        self.i += 1;
-        if self.i < self.output.iterations {
-            Some(self.proof)
+    type Item = ProofIterable;
+    fn next(&mut self) -> Option<ProofIterable> {
+        self.iterable.b = &self.two * &self.iterable.r / &self.cap;
+        self.iterable.r = (&self.two * &self.iterable.r) % &self.cap;
+        self.iterable.pi = self.iterable.pi.pow_mod(&self.two, &self.modulus)
+            * self.generator.pow_mod(&self.iterable.b, &self.modulus);
+        self.iterable.pi %= &self.modulus;
+        self.iterable.i += 1;
+        if self.iterable.i < self.output.iterations {
+            Some(self.iterable.clone())
         } else {
             None
         }
@@ -126,33 +114,41 @@ impl VDFProof {
             generator: generator.clone(),
             output: result.clone(),
             cap: cap.clone(),
-            proof: ONE,
-            r: ONE,
-            b: ZERO,
-            i: 0,
+            iterable: ProofIterable {
+                pi: Int::from(1),
+                r: Int::from(1),
+                b: Int::zero(),
+                i: 0,
+            },
+            two: Int::from(2),
         }
     }
 
-    pub fn calculate(&self) -> Self {
-        self.par_bridge().collect();
-        debug!(
-            "Proof generated, final state: r: {:?}, proof: {:?}",
-            r, proof
-        );
-        Self
+    // pub fn to_iter(&self) -> rayon::iter::IterBridge<VDFProof> {
+    //     self.clone().into_iter()
+    // }
+
+    pub fn calculate(&mut self) -> Option<VDFProof> {
+        match self.last() {
+            Some(proof) => {
+                self.iterable = proof;
+                Some(self.clone())
+            }
+            None => None,
+        }
     }
 
     /// A public function that a receiver can use to verify the correctness of
     /// the VDFProof
     pub fn verify(&self) -> bool {
-        // Check first that the result isn't larger than the RSA generator
-        if self.proof > self.modulus {
+        // Check first that the proof belongs in the RSA group
+        if self.iterable.pi > self.modulus {
             return false;
         }
         let r =
             Int::from(2).pow_mod(&Int::from(self.output.iterations), &self.cap);
         self.output.result
-            == (self.proof.pow_mod(&self.cap, &self.modulus)
+            == (self.iterable.pi.pow_mod(&self.cap, &self.modulus)
                 * self.generator.pow_mod(&r, &self.modulus))
                 % &self.modulus
     }
@@ -176,17 +172,41 @@ pub struct VDF {
     pub upper_bound: u32,
     pub cap: Int,
     pub result: VDFResult,
+    two: Int,
 }
 
 impl Iterator for VDF {
     type Item = VDFResult;
     fn next(&mut self) -> Option<VDFResult> {
-        self.result.result = self.result.result.pow_mod(&TWO, &self.modulus);
         self.result.iterations += 1;
-        if self.result.iterations < self.upper_bound {
-            Some(self.result)
+        if self.result.iterations <= self.upper_bound {
+            self.result.result =
+                self.result.result.pow_mod(&self.two, &self.modulus);
+            Some(self.result.clone())
         } else {
             None
+        }
+    }
+}
+
+fn calculate_and_send_proof(
+    modulus: &Int,
+    generator: &Int,
+    result: &VDFResult,
+    cap: &Int,
+    worker_sender: &Sender<Result<VDFProof, InvalidCapError>>,
+) {
+    let proof = VDFProof::new(modulus, generator, result, cap).calculate();
+
+    match proof {
+        None => error!("Failed to generate a proof!"),
+        Some(success) => {
+            debug!("Proof generated! {:#?}", success);
+
+            // Send proof to caller
+            if worker_sender.send(Ok(success)).is_err() {
+                error!("Failed to send the proof to caller!");
+            }
         }
     }
 }
@@ -197,13 +217,14 @@ impl VDF {
     pub fn new(modulus: Int, generator: Int, upper_bound: u32) -> Self {
         Self {
             modulus,
-            generator,
+            generator: generator.clone(),
             upper_bound,
             cap: Int::zero(),
             result: VDFResult {
                 result: generator,
                 iterations: 0,
             },
+            two: Int::from(2),
         }
     }
 
@@ -213,10 +234,9 @@ impl VDF {
         self
     }
 
-    /// Validates that cap is not below upper bound and is prime.
-    fn validate_cap(&self, cap: &Int, upper_bound: u32) -> bool {
+    /// Validates that cap is prime.
+    fn validate_cap(&self, cap: &Int) -> bool {
         Verification::verify_prime(cap.clone())
-            && cap.bit_length() < upper_bound
     }
 
     /// Estimates the maximum number of sequential calculations that can fit in
@@ -240,15 +260,15 @@ impl VDF {
     /// A worker that does the actual calculation in a VDF. Returns a VDFProof
     /// based on initial parameters in the VDF.
     pub fn run_vdf_worker(
-        self,
+        mut self,
     ) -> (Sender<Int>, Receiver<Result<VDFProof, InvalidCapError>>) {
         let (caller_sender, worker_receiver): (Sender<Int>, Receiver<Int>) =
             channel();
         let (worker_sender, caller_receiver) = channel();
 
-        thread::spawn(move || {
-            loop {
-                if self.next().is_none() {
+        thread::spawn(move || loop {
+            match self.next() {
+                None => {
                     // Upper bound reached, stops iteration
                     // and calculates the proof
                     debug!(
@@ -260,34 +280,27 @@ impl VDF {
                     let mut self_cap: Int = self.cap.clone();
 
                     // Check if default, check for primality if else
-                    if self_cap == 0 {
+                    if self_cap == Int::zero() {
                         self_cap = Generator::new_safe_prime(128);
                         debug!("Cap generated: {:?}", self_cap);
-                    } else if !self
-                        .validate_cap(&self_cap, self.result.iterations)
-                    {
+                    } else if !self.validate_cap(&self_cap) {
                         if worker_sender.send(Err(InvalidCapError)).is_err() {
                             error!("Cap not correct!");
                         }
                         break;
                     }
 
-                    // Generate the VDF proof
-                    let proof = VDFProof::new(
+                    calculate_and_send_proof(
                         &self.modulus,
                         &self.generator,
                         &self.result,
                         &self_cap,
+                        &worker_sender,
                     );
-                    debug!("Proof generated! {:?}", proof);
-
-                    // Send proof to caller
-                    if worker_sender.send(Ok(proof)).is_err() {
-                        error!("Failed to send the proof to caller!");
-                    }
 
                     break;
-                } else {
+                }
+                Some(result) => {
                     // Try receiving a cap from the other participant on each
                     // iteration
                     if let Ok(cap) = worker_receiver.try_recv() {
@@ -295,20 +308,14 @@ impl VDF {
                         debug!("Received the cap {:?}, generating proof.", cap);
 
                         // Check for primality
-                        if self.validate_cap(&cap, self.result.iterations) {
-                            // Generate the VDF proof
-                            let proof = VDFProof::new(
+                        if self.validate_cap(&cap) {
+                            calculate_and_send_proof(
                                 &self.modulus,
                                 &self.generator,
-                                &self.result,
+                                &result,
                                 &cap,
+                                &worker_sender,
                             );
-                            debug!("Proof generated! {:?}", proof);
-
-                            // Send proof to caller
-                            if worker_sender.send(Ok(proof)).is_err() {
-                                error!("Failed to send the proof to caller!");
-                            }
                         } else {
                             error!("Received cap was not a prime!");
                             // Received cap was not a prime, send error to
@@ -357,7 +364,7 @@ mod tests {
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
-                println!("{:?}", proof);
+                println!("{:#?}", proof);
                 assert!(proof.verify());
 
                 let our_proof = proof;
@@ -365,6 +372,7 @@ mod tests {
                 if let Ok(res2) = receiver2.recv() {
                     if let Ok(proof2) = res2 {
                         assert!(proof2.verify());
+                        println!("{:#?}", proof2);
                         let their_proof = proof2;
                         assert_eq!(our_proof, their_proof);
                     }
@@ -379,27 +387,20 @@ mod tests {
         let generator = Int::from(11);
         let two = Int::from(2);
         let cap = Int::from(7);
-        let mut result = generator.clone();
+        let mut vdf = VDF::new(modulus, generator, 0);
 
-        result = iter_vdf(result, &modulus, &two);
-        assert_eq!(result, two);
+        vdf.next();
+        assert_eq!(vdf.result.result, two);
 
-        result = iter_vdf(result, &modulus, &two);
-        assert_eq!(result, Int::from(4));
+        vdf.next();
+        assert_eq!(vdf.result.result, Int::from(4));
 
-        result = iter_vdf(result, &modulus, &two);
-        assert_eq!(result, Int::from(16));
+        vdf.next();
+        assert_eq!(vdf.result.result, Int::from(16));
 
-        let proof = VDFProof::new(
-            &modulus,
-            &generator,
-            &VDFResult {
-                iterations: 3,
-                result,
-            },
-            &cap,
-        );
-        println!("{:?}", proof);
+        let proof =
+            VDFProof::new(&vdf.modulus, &vdf.generator, &vdf.result, &cap);
+
         assert!(proof.verify());
     }
 
@@ -419,12 +420,12 @@ mod tests {
 
         let mut first_proof = VDFProof::default();
 
-        let cap_error = capper.send(cap.clone()).is_err();
+        let cap_error = capper.send(cap).is_err();
         assert!(!cap_error);
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
-                assert!(proof.proof != 1);
+                assert!(proof.iterable.pi != 1);
                 first_proof = proof;
             }
         }
@@ -440,34 +441,8 @@ mod tests {
                 assert_eq!(proof2, first_proof);
                 assert!(first_proof.verify());
                 assert!(proof2.verify());
-                println!("Proof1: {:?}, Proof2: {:?}", first_proof, proof2);
+                println!("Proof1: {:#?}, Proof2: {:#?}", first_proof, proof2);
             }
         }
-    }
-
-    #[test]
-    fn should_serialize_and_deserialize() {
-        let modulus = Int::from(17);
-        let generator = Int::from(11);
-        let two = Int::from(2);
-        let cap = Int::from(7);
-        let mut result = generator.clone();
-
-        result = iter_vdf(result, &modulus, &two);
-
-        let proof = VDFProof::new(
-            &modulus,
-            &generator,
-            &VDFResult {
-                iterations: 1,
-                result,
-            },
-            &cap,
-        );
-        let serialized_proof = serde_json::to_string(&proof).unwrap();
-        let unserialized_proof =
-            serde_json::from_str(&serialized_proof).unwrap();
-
-        assert_eq!(unserialized_proof, proof);
     }
 }
