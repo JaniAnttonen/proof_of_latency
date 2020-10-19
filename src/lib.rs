@@ -3,62 +3,119 @@ extern crate log;
 extern crate sm;
 
 use ramp::Int;
-use sm::sm;
-use std::sync::mpsc::{Receiver, Sender};
+use ramp_primes::Generator;
+use std::error::Error;
+use std::fmt;
 
+use std::sync::mpsc::{channel, Receiver, Sender};
+
+// Internal imports
 pub mod p2p;
 pub mod vdf;
+use vdf::evaluation::VDF;
+use vdf::proof::VDFProof;
+use vdf::InvalidCapError;
 
+// RSA-2048, copied from Wikipedia
 pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
+use sm::sm;
+
+// State machine macro for handling the protocol state
 sm!(
-    PoL {
-        InitialStates { Prover, Verifier }
-        CreateGeneratorHash {
-            Prover => SendingGeneratorHash
-            Verifier => WaitingForGeneratorHash
-        }
+  PoL {
+      InitialStates { Prover, Verifier }
 
-        SendGeneratorHash {
-            SendingGeneratorHash => WaitingForGeneratorHashAndCap
-        }
-        ReceiveGeneratorHash {
-            WaitingForGeneratorHash => SendingGeneratorHashAndCap
-        }
-        SendGeneratorHashAndCap {
-            WaitingForGeneratorHashAndCap => EvaluatingVDFAndWaitingForCap
-        }
+      // Both the Prover and the Verifier start by creating a part of the generator
+      CreateGeneratorPart {
+          Prover => Sending
+          Verifier => Waiting
+      }
 
-        ReceiveGeneratorHashAndCap {
-            WaitingForGeneratorHashAndCap => EvaluatingVDFUntilT
-        }
-        EndVDFEvaluation {
-            EvaluatingVDFUntilT => SendingCap
-            EvaluatingVDFAndWaitingForCap => GeneratingProof
-        }
+      // Prover sends the created generator part to the Verifier
+      SendGeneratorPart {
+          Sending => Waiting
+      }
 
-        GenerateProverProof {
-            SendingCap => VDFProofGenerated
-        }
+      // Verifier receives the generator part created by the Prover, starts its VDF, and sends back a generator part with the cap
+      SendGeneratorPartAndCap {
+          Waiting => EvaluatingAndWaiting
+      }
 
-        GenerateVerifierProof {
-            GeneratingProof => VDFProofGenerated
-        }
+      // Prover receives the generator part and the cap from the Verifier, starts evaluating until predefined difficulty T is reached
+      ReceiveGeneratorPartAndCap {
+          Waiting => Evaluating
+      }
 
+      // Evaluation end state for both the Prover and the Verifier, triggering proof generation
+      EndEvaluation {
+          Evaluating => Sending
+          EvaluatingAndWaiting => Generating
+      }
 
-    }
+      // Prover sends the VDF proof with a cap to the Verifier
+      GenerateProverProof {
+          Sending => ProofReady
+      }
+
+      // Verifier has created its own proof, and combines the two VDF proofs into a proof of latency.
+      GenerateVerifierProof {
+          Generating => ProofReady
+      }
+  }
 );
 
-// modulus = N, generator = g
+use crate::PoL::*;
+
+/// All possible messages that are passed between the prover and the verifier in
+/// calculating a Proof of Latency
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PoLMessage {
+    GeneratorPart { num: Int },
+
+    Cap { num: Int },
+
+    GeneratorPartAndCap { generatorPart: Int, cap: Int },
+
+    VDFProof { proof: VDFProof },
+
+    SignedVDFProof { proof: VDFProof, signature: String },
+
+    Error { reason: String },
+}
+
+/// PoLStartError is thrown when Proof of Latency is started before all
+/// prequisites are met.
+#[derive(Debug)]
+pub struct PoLStartError;
+
+impl fmt::Display for PoLStartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "I/O not defined yet, trying to start a Proof of Latency without new()?")
+    }
+}
+
+impl Error for PoLStartError {
+    fn description(&self) -> &str {
+        "I/O not defined yet, trying to start a Proof of Latency without new()?"
+    }
+}
+
+/// Struct that keeps the needed variables in memory during the state machine
+/// execution modulus = N, generator = g
 #[derive(Debug)]
 pub struct ProofOfLatency {
     pub modulus: Option<Int>,
     pub generator: Option<Int>,
     pub upper_bound: Option<u32>,
-    capper: Option<Sender<Int>>,
-    receiver: Option<Receiver<Result<vdf::VDFProof, vdf::InvalidCapError>>>,
-    pub prover_result: Option<vdf::VDFProof>,
-    pub verifier_result: Option<vdf::VDFProof>,
+    VDFCapper: Option<Sender<Int>>,
+    VDFResultChannel: Option<Receiver<Result<VDFProof, InvalidCapError>>>,
+    pub prover_result: Option<VDFProof>,
+    pub verifier_result: Option<VDFProof>,
+    pub input: Option<Sender<PoLMessage>>,
+    userInputListener: Option<Receiver<PoLMessage>>,
+    pub output: Option<Receiver<PoLMessage>>,
+    userOutputSender: Option<Sender<PoLMessage>>,
 }
 
 impl Default for ProofOfLatency {
@@ -67,30 +124,135 @@ impl Default for ProofOfLatency {
             modulus: None,
             generator: None,
             upper_bound: None,
-            capper: None,
-            receiver: None,
+            VDFCapper: None,
+            VDFResultChannel: None,
             prover_result: None,
             verifier_result: None,
+            output: None,
+            userInputListener: None,
+            input: None,
+            userOutputSender: None,
         }
     }
 }
 
 impl ProofOfLatency {
-    pub fn start(&mut self, modulus: Int, generator: Int, upper_bound: u32) {
+    pub fn new(&mut self, modulus: Int, upper_bound: u32) -> Self {
         self.modulus = Some(modulus.clone());
-        self.generator = Some(generator.clone());
+        self.generator = None;
         self.upper_bound = Some(upper_bound);
-
-        let prover_vdf = vdf::VDF::new(modulus, generator, upper_bound);
-        let (capper, receiver) = prover_vdf.run_vdf_worker();
-        self.capper = Some(capper);
-        self.receiver = Some(receiver);
+        let (input, listener): (Sender<PoLMessage>, Receiver<PoLMessage>) =
+            channel();
+        let (sender, output): (Sender<PoLMessage>, Receiver<PoLMessage>) =
+            channel();
+        self.input = Some(input);
+        self.userInputListener = Some(listener);
+        self.output = Some(output);
+        self.userOutputSender = Some(sender);
+        *self
     }
 
-    pub fn receive(&mut self, their_proof: vdf::VDFProof) {
+    fn abort(&mut self, reason: &str) {
+        self.userOutputSender.unwrap().send(PoLMessage::Error {
+            reason: String::from(reason),
+        });
+    }
+
+    pub fn start(
+        &mut self,
+        modulus: Int,
+        generator: Int,
+        upper_bound: u32,
+    ) -> Result<(), PoLStartError> {
+        if self.output.is_none() | self.input.is_none() {
+            Err(PoLStartError)
+        }
+        let mut sm = Machine::new(Prover).as_enum();
+        let prover_vdf = VDF::new(modulus, generator, upper_bound);
+
+        loop {
+            sm = match sm {
+                // PROVER: Create g1 + l1
+                Variant::InitialProver(m) => {
+                    self.generator = Some(Generator::new_uint(64));
+                    m.transition(CreateGeneratorPart).as_enum()
+                }
+                // VERIFIER: Create g2 + l2
+                Variant::InitialVerifier(m) => {
+                    self.generator = Some(Generator::new_uint(64));
+                    m.transition(CreateGeneratorPart).as_enum()
+                }
+                // PROVER: Send g1
+                Variant::SendingByCreateGeneratorPart(m) => {
+                    match self.userOutputSender {
+                        Some(sender) => {
+                            sender.send(PoLMessage::GeneratorPart {
+                                num: self.generator.unwrap(),
+                            });
+                            m.transition(SendGeneratorPart).as_enum()
+                        }
+                        None => continue,
+                    }
+                }
+                // VERIFIER: Receive g1, Start VDF, Send g2 + l2
+                Variant::WaitingByCreateGeneratorPart(m) => {
+                    // Receive g1
+                    match self.userInputListener {
+                        Some(input) => {
+                            if let Ok(message) = input.recv() {
+                                match message {
+                                    PoLMessage::GeneratorPart { num } => {
+                                        let sumStr: String =
+                                            (self.generator.unwrap() + num)
+                                                .to_str_radix(16, true);
+                                        let hash: Int = vdf::util::hash(
+                                            &sumStr,
+                                            &self.modulus.unwrap(),
+                                        );
+                                    }
+                                    _ => {
+                                        self.abort("Expected PoLMessage::GeneratorPart, received something else");
+                                        break;
+                                    }
+                                }
+                            } else {
+                                self.abort("Could not receive input");
+                                break;
+                            }
+                        }
+                        None => continue,
+                    }
+
+                    // Start VDF
+
+                    // Send g2 + l2
+                    match self.userOutputSender {
+                        Some(sender) => {
+                            sender.send(PoLMessage::GeneratorPart {
+                                num: self.generator.unwrap(),
+                            });
+                        }
+                        None => {
+                            self.abort("Cannot send to user, aborting");
+                            break;
+                        }
+                    }
+
+                    // Transition the state machine
+                    m.transition(SendGeneratorPartAndCap).as_enum()
+                }
+            }
+        }
+
+        let (capper, receiver) = prover_vdf.run_vdf_worker();
+        self.VDFCapper = Some(capper);
+        self.VDFResultChannel = Some(receiver);
+    }
+
+    pub fn receive(&mut self, their_proof: VDFProof) {
         // Send received signature from the other peer, "capping off" the VDF
         if self
-            .capper
+            .VDFCapper
             .as_ref()
             .unwrap()
             .send(their_proof.cap.clone())

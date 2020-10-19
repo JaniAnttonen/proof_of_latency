@@ -49,20 +49,20 @@ use libp2p::kad::{
     PutRecordOk, QueryResult, Quorum, Record,
 };
 use libp2p::{
-    build_development_transport, identity,
+    build_development_transport,
     mdns::{Mdns, MdnsEvent},
     swarm::NetworkBehaviourEventProcess,
-    NetworkBehaviour, PeerId, Swarm,
+    NetworkBehaviour, Swarm,
 };
 use std::{
     error::Error,
     task::{Context, Poll},
 };
 
+pub mod identity;
+
 pub fn run() -> Result<(), Box<dyn Error>> {
-    // Create a random key for ourselves.
-    let local_key = identity::Keypair::generate_ed25519();
-    let local_peer_id = PeerId::from(local_key.public());
+    let (local_key, local_peer_id) = identity::create_identity();
 
     // Set up a an encrypted DNS-enabled TCP Transport over the Mplex protocol.
     let transport = build_development_transport(local_key)?;
