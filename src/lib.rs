@@ -7,6 +7,7 @@ use ramp_primes::Generator;
 use std::error::Error;
 use std::fmt;
 
+use std::{thread};
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 // Internal imports
@@ -163,14 +164,14 @@ impl ProofOfLatency {
         modulus: Int,
         generator: Int,
         upper_bound: u32,
-    ) -> Result<(), PoLStartError> {
-        if self.output.is_none() | self.input.is_none() {
+    ) -> Result<bool, PoLStartError> {
+        if self.output.is_none() {
             Err(PoLStartError)
         }
         let mut sm = Machine::new(Prover).as_enum();
         let prover_vdf = VDF::new(modulus, generator, upper_bound);
 
-        loop {
+        thread::spawn(move || loop {
             sm = match sm {
                 // PROVER: Create g1 + l1
                 Variant::InitialProver(m) => {
@@ -224,12 +225,16 @@ impl ProofOfLatency {
                     }
 
                     // Start VDF
+                    let (capper, receiver) = prover_vdf.run_vdf_worker();
+                    self.VDFCapper = Some(capper);
+                    self.VDFResultChannel = Some(receiver);
 
                     // Send g2 + l2
                     match self.userOutputSender {
                         Some(sender) => {
-                            sender.send(PoLMessage::GeneratorPart {
-                                num: self.generator.unwrap(),
+                            sender.send(PoLMessage::GeneratorPartAndCap {
+                                generatorPart: self.generator.unwrap(),
+                                cap: 
                             });
                         }
                         None => {
@@ -242,11 +247,9 @@ impl ProofOfLatency {
                     m.transition(SendGeneratorPartAndCap).as_enum()
                 }
             }
-        }
+        });
 
-        let (capper, receiver) = prover_vdf.run_vdf_worker();
-        self.VDFCapper = Some(capper);
-        self.VDFResultChannel = Some(receiver);
+        Ok(true)
     }
 
     pub fn receive(&mut self, their_proof: VDFProof) {
