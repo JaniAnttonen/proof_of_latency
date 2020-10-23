@@ -7,8 +7,8 @@ use ramp_primes::Generator;
 use std::error::Error;
 use std::fmt;
 
-use std::{thread};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 
 // Internal imports
 pub mod p2p;
@@ -109,14 +109,15 @@ pub struct ProofOfLatency {
     pub modulus: Option<Int>,
     pub generator: Option<Int>,
     pub upper_bound: Option<u32>,
-    VDFCapper: Option<Sender<Int>>,
-    VDFResultChannel: Option<Receiver<Result<VDFProof, InvalidCapError>>>,
+    vdf_capper: Option<Sender<Int>>,
+    vdf_result_channel: Option<Receiver<Result<VDFProof, InvalidCapError>>>,
     pub prover_result: Option<VDFProof>,
     pub verifier_result: Option<VDFProof>,
     pub input: Option<Sender<PoLMessage>>,
-    userInputListener: Option<Receiver<PoLMessage>>,
+    user_input_listener: Option<Receiver<PoLMessage>>,
     pub output: Option<Receiver<PoLMessage>>,
-    userOutputSender: Option<Sender<PoLMessage>>,
+    user_output_sender: Option<Sender<PoLMessage>>,
+    sendable_cap: Option<Int>,
 }
 
 impl Default for ProofOfLatency {
@@ -125,14 +126,15 @@ impl Default for ProofOfLatency {
             modulus: None,
             generator: None,
             upper_bound: None,
-            VDFCapper: None,
-            VDFResultChannel: None,
+            vdf_capper: None,
+            vdf_result_channel: None,
             prover_result: None,
             verifier_result: None,
             output: None,
-            userInputListener: None,
+            user_input_listener: None,
             input: None,
-            userOutputSender: None,
+            user_output_sender: None,
+            sendable_cap: None,
         }
     }
 }
@@ -147,26 +149,26 @@ impl ProofOfLatency {
         let (sender, output): (Sender<PoLMessage>, Receiver<PoLMessage>) =
             channel();
         self.input = Some(input);
-        self.userInputListener = Some(listener);
+        self.user_input_listener = Some(listener);
         self.output = Some(output);
-        self.userOutputSender = Some(sender);
+        self.user_output_sender = Some(sender);
         *self
     }
 
     fn abort(&mut self, reason: &str) {
-        self.userOutputSender.unwrap().send(PoLMessage::Error {
+        self.user_output_sender.unwrap().send(PoLMessage::Error {
             reason: String::from(reason),
         });
     }
 
     pub fn start(
-        &mut self,
+        mut self,
         modulus: Int,
         generator: Int,
         upper_bound: u32,
     ) -> Result<bool, PoLStartError> {
         if self.output.is_none() {
-            Err(PoLStartError)
+            return Err(PoLStartError);
         }
         let mut sm = Machine::new(Prover).as_enum();
         let prover_vdf = VDF::new(modulus, generator, upper_bound);
@@ -175,17 +177,19 @@ impl ProofOfLatency {
             sm = match sm {
                 // PROVER: Create g1 + l1
                 Variant::InitialProver(m) => {
+                    self.sendable_cap = Some(Generator::new_uint(64));
                     self.generator = Some(Generator::new_uint(64));
                     m.transition(CreateGeneratorPart).as_enum()
                 }
                 // VERIFIER: Create g2 + l2
                 Variant::InitialVerifier(m) => {
+                    self.sendable_cap = Some(Generator::new_uint(64));
                     self.generator = Some(Generator::new_uint(64));
                     m.transition(CreateGeneratorPart).as_enum()
                 }
                 // PROVER: Send g1
                 Variant::SendingByCreateGeneratorPart(m) => {
-                    match self.userOutputSender {
+                    match self.user_output_sender {
                         Some(sender) => {
                             sender.send(PoLMessage::GeneratorPart {
                                 num: self.generator.unwrap(),
@@ -198,7 +202,7 @@ impl ProofOfLatency {
                 // VERIFIER: Receive g1, Start VDF, Send g2 + l2
                 Variant::WaitingByCreateGeneratorPart(m) => {
                     // Receive g1
-                    match self.userInputListener {
+                    match self.user_input_listener {
                         Some(input) => {
                             if let Ok(message) = input.recv() {
                                 match message {
@@ -226,15 +230,15 @@ impl ProofOfLatency {
 
                     // Start VDF
                     let (capper, receiver) = prover_vdf.run_vdf_worker();
-                    self.VDFCapper = Some(capper);
-                    self.VDFResultChannel = Some(receiver);
+                    self.vdf_capper = Some(capper);
+                    self.vdf_result_channel = Some(receiver);
 
                     // Send g2 + l2
-                    match self.userOutputSender {
+                    match self.user_output_sender {
                         Some(sender) => {
                             sender.send(PoLMessage::GeneratorPartAndCap {
                                 generatorPart: self.generator.unwrap(),
-                                cap: 
+                                cap: self.sendable_cap.unwrap(),
                             });
                         }
                         None => {
@@ -255,7 +259,7 @@ impl ProofOfLatency {
     pub fn receive(&mut self, their_proof: VDFProof) {
         // Send received signature from the other peer, "capping off" the VDF
         if self
-            .VDFCapper
+            .vdf_capper
             .as_ref()
             .unwrap()
             .send(their_proof.cap.clone())
