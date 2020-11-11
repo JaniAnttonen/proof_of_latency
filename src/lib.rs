@@ -48,18 +48,15 @@ sm!(
           Waiting => Evaluating
       }
 
-      // Evaluation end state for both the Prover and the Verifier, triggering proof generation
-      EndEvaluation {
+      // Evaluation end state for the Prover, triggering proof generation
+      EndProverEvaluation {
           Evaluating => Waiting
-          EvaluatingAndWaiting => Signing
       }
 
-      // ----------- THIS MIGHT BE REDUNTANT
-      // Verifier sends the signed Proof of Latency without Prover's signature to Prover for verification and signing
-      SignProverVDF {
-          Signing => Waiting
+      // Verifier creates a signed Proof of Latency, sends it to Prover for verification and signing
+      EndVerifierEvaluation {
+          EvaluatingAndWaiting => Waiting
       }
-      // -----------
 
       // Prover signs the Verifier's VDF, sending back the fully signed Proof of Latency
       SignVerifierVDF {
@@ -241,8 +238,8 @@ impl ProofOfLatency {
             };
 
             // Create the sendable cap and generator part
-            let mut sendable_cap: &Int;
-            let mut our_generator_part: &Int;
+            let mut sendable_cap: &Int = &Int::zero();
+            let mut our_generator_part: &Int = &Int::zero();
 
             loop {
                 sm = match sm {
@@ -355,10 +352,11 @@ impl ProofOfLatency {
                             break;
                         }
 
-                        m.transition(EndEvaluation).as_enum()
+                        m.transition(EndProverEvaluation).as_enum()
                     }
                     // VERIFIER: Receive VDFProof + l1, construct Proof of
-                    // Latency and send it to the user to sign
+                    // Latency and send it to the user to sign and send to
+                    // Prover
                     Variant::EvaluatingAndWaitingBySendGeneratorPartAndCap(
                         m,
                     ) => {
@@ -403,36 +401,32 @@ impl ProofOfLatency {
                                 .as_ref()
                                 .unwrap()
                                 .clone(),
-                            verifierPubKey: self.pubkey.unwrap(),
+                            verifierPubKey: self.pubkey.clone().unwrap(),
                             proverPubKey: String::from(""),
                             verifierSignature: String::from(""),
                             proverSignature: String::from(""),
                         });
 
-                        m.transition(EndEvaluation).as_enum()
+                        m.transition(EndVerifierEvaluation).as_enum()
                     }
-                    // VERIFIER: Receive the signed Proof of Latency from the
-                    // user, send to Prover
-                    Variant::SigningByEndEvaluation(m) => {
-                        if let Ok(message) = user_input.recv() {
-                            match message {
-                                PoLMessage::ProofOfLatency {
-                                    prover,
-                                    verifier,
-                                    proverPubKey,
-                                    verifierPubKey,
-                                    proverSignature,
-                                    verifierSignature,
-                                } => {}
-                                _ => {
-                                    self.abort("EvaluatingAndWaitingBySendGeneratorPartAndCap: Expected PoLMessage::VDFProofAndCap, received something else");
-                                    break;
-                                }
-                            }
-                        } else {
-                            self.abort("EvaluatingAndWaitingBySendGeneratorPartAndCap: Could not receive input");
-                            break;
-                        }
+                    // PROVER: Receive Proof of Latency from Verifier, check
+                    // that it is correct, and send back to Verifier with a
+                    // signature
+                    Variant::WaitingByEndProverEvaluation(m) => {
+                        m.transition(SignVerifierVDF).as_enum()
+                    }
+                    // VERIFIER: Receive a ready Proof of Latency from Prover,
+                    // make it available to the network
+                    Variant::WaitingByEndVerifierEvaluation(m) => {
+                        m.transition(ReceiveProofOfLatency).as_enum()
+                    }
+                    // PROVER: Make proof available to the network
+                    Variant::ProofReadyBySignVerifierVDF(_) => {
+                        break;
+                    }
+                    // VERIFIER: Make proof available to the network
+                    Variant::ProofReadyByReceiveProofOfLatency(_) => {
+                        break;
                     }
                 }
             }
@@ -496,7 +490,7 @@ mod tests {
         let mut pol = ProofOfLatency::default();
 
         let pol2 = ProofOfLatency::default();
-        pol.start(modulus, u32::MAX);
+        pol.start(PoLRole::Prover, modulus, u32::MAX);
 
         assert!(pol.vdf_capper.is_some());
         assert!(pol2.vdf_capper.is_none());
