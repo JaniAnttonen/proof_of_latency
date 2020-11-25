@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate log;
-use proof_of_latency::{p2p, vdf, ProofOfLatency};
+use proof_of_latency::{p2p, vdf, PoLRole, ProofOfLatency};
 use ramp::Int;
 use ramp_primes::Generator;
 use std::str::FromStr;
@@ -25,7 +25,7 @@ fn main() {
     let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 128);
     debug!("Verifier's VDF created");
 
-    pol.start(modulus, base, u32::MAX);
+    pol.start(PoLRole::Prover, modulus, u32::MAX);
     debug!("Proof of Latency calculation started");
 
     let (_, receiver) = verifiers_vdf.run_vdf_worker();

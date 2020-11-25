@@ -26,3 +26,6 @@ proptest = "0.10.0"
 version = "1"
 default-features = false
 features = ["user-hooks"]
+
+[profile.release]
+lto = true
