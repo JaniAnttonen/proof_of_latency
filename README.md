@@ -18,3 +18,6 @@ sudo dnf -y install gmp-devel
 
 ...and you should be good to go!
 
+# Tested working toolchains
+nightly-2020-06-23
+

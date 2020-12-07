@@ -200,12 +200,19 @@ impl ProofOfLatency {
     }
 
     fn abort(&self, reason: &str) {
-        self.user_output_sender
-            .as_ref()
-            .unwrap()
-            .send(PoLMessage::Error {
-                reason: String::from(reason),
-            });
+        match self.user_output_sender.as_ref() {
+            Some(sender) => {
+                match sender.send(
+                    PoLMessage::Error {
+                        reason: String::from(reason),
+                    },
+                ) {
+                    Ok(result) => debug!("{:?}", result),
+                    Err(_err) => warn!("Couldn't send PoL abort message back to user, check implementation!")
+                }
+            },
+            None => error!("This shouldn't happen, the state machine implementation has a bug.")
+        }
     }
 
     fn combine_generator_parts(&self, our: &Int, other: &Int) -> Int {
@@ -523,9 +530,8 @@ mod tests {
     #[test]
     fn new_assigns_io_channels() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol =
+        let pol =
             ProofOfLatency::default().new(modulus, u32::MAX, String::from(""));
-        //pol.start(PoLRole::Prover);
         let pol2 = ProofOfLatency::default();
 
         assert!(pol.user_input_listener.is_some());
