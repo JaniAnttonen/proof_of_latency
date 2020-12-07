@@ -75,15 +75,15 @@ mod tests {
         let generator = Int::from(11);
         let two = Int::from(2);
         let cap = Int::from(7);
-        let mut vdf = evaluation::VDF::new(modulus, generator, 0);
+        let mut vdf = evaluation::VDF::new(modulus, generator, u32::MAX);
 
-        vdf.next();
+        vdf.result = vdf.next().unwrap();
         assert_eq!(vdf.result.result, two);
 
-        vdf.next();
+        vdf.result = vdf.next().unwrap();
         assert_eq!(vdf.result.result, Int::from(4));
 
-        vdf.next();
+        vdf.result = vdf.next().unwrap();
         assert_eq!(vdf.result.result, Int::from(16));
 
         let proof = proof::VDFProof::new(
@@ -91,7 +91,11 @@ mod tests {
             &vdf.generator,
             &vdf.result,
             &cap,
-        );
+        )
+        .calculate()
+        .unwrap();
+
+        println!("{:#?}", proof);
 
         assert!(proof.verify());
     }

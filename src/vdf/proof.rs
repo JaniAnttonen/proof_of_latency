@@ -30,10 +30,9 @@ impl Iterator for VDFProof {
             * self.generator.pow_mod(&self.iterable.b, &self.modulus);
         self.iterable.pi %= &self.modulus;
         self.iterable.i += 1;
-        if self.iterable.i < self.output.iterations {
-            Some(self.iterable.clone())
-        } else {
-            None
+        match self.iterable.i <= self.output.iterations {
+            true => Some(self.iterable.clone()),
+            false => None,
         }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {

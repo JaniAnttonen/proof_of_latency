@@ -49,8 +49,8 @@ pub struct VDF {
 impl Iterator for VDF {
     type Item = VDFResult;
     fn next(&mut self) -> Option<VDFResult> {
-        self.result.iterations += 1;
-        if self.result.iterations <= self.upper_bound {
+        if self.result.iterations < self.upper_bound {
+            self.result.iterations += 1;
             self.result.result =
                 self.result.result.pow_mod(&self.two, &self.modulus);
             Some(self.result.clone())
@@ -179,6 +179,7 @@ impl VDF {
                     break;
                 }
                 Some(result) => {
+                    self.result = result;
                     // Try receiving a cap from the other participant on each
                     // iteration
                     if let Ok(cap) = worker_receiver.try_recv() {
@@ -190,7 +191,7 @@ impl VDF {
                             calculate_and_send_proof(
                                 &self.modulus,
                                 &self.generator,
-                                &result,
+                                &self.result,
                                 &cap,
                                 &worker_sender,
                             );
