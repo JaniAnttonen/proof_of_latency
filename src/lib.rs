@@ -570,7 +570,7 @@ mod tests {
         let modulus = Int::from_str(RSA_2048).unwrap();
         let mut pol = ProofOfLatency::default().new(
             modulus,
-            9001,
+            42,
             String::from("hiughbeihviurehvifesljkvhjkreshghles"),
         );
         let (input, output) = pol.open_io();

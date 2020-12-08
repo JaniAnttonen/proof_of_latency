@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate log;
-use proof_of_latency::{p2p, vdf, PoLRole, ProofOfLatency};
+use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
 use ramp::Int;
 use ramp_primes::Generator;
 use std::str::FromStr;
@@ -10,21 +10,50 @@ fn main() {
 
     // p2p::run();
 
-    let mut pol = ProofOfLatency::default();
+    let modulus = Int::from_str(RSA_2048).unwrap();
+    let mut pol =
+        ProofOfLatency::default().new(modulus, 150000, String::from(""));
+    let (input, output) = pol.open_io();
     debug!("Proof of latency instance created");
 
-    //let ver_proof_correct = pol.verifier_result.unwrap().verify();
-    //let pro_proof_correct = pol.prover_result.unwrap().verify();
+    match pol.start(PoLRole::Prover) {
+        Ok(_) => info!("PoL state machine started"),
+        Err(_) => error!("Couldn't start the PoL state machine"),
+    }
 
-    //if ver_proof_correct {
-    //    info!("Verifier proof correct!");
-    //} else {
-    //    error!("Verifier proof incorrect!");
-    //}
+    if let Ok(message) = output.recv() {
+        match message {
+            PoLMessage::GeneratorPart { num } => {
+                info!("Generator part received: {:?}", num)
+            }
+            _ => error!("Wrong message received"),
+        }
+    } else {
+        error!("Channel closed!")
+    }
 
-    //if pro_proof_correct {
-    //    info!("Prover proof correct!");
-    //} else {
-    //    error!("Prover proof incorrect!");
-    //}
+    let cap = Generator::new_safe_prime(128);
+    let generator_part = Generator::new_uint(128);
+    match input.send(PoLMessage::GeneratorPartAndCap {
+        generator_part,
+        cap,
+    }) {
+        Ok(_) => info!("Received g2, l2"),
+        Err(_) => error!("Channel closed!"),
+    }
+
+    if let Ok(message) = output.recv() {
+        match message {
+            PoLMessage::VDFProofAndCap { proof, cap: _ } => {
+                if proof.verify() {
+                    info!("VDF ready!")
+                } else {
+                    error!("Our VDF proof was not correct!")
+                }
+            }
+            _ => error!("Wrong message received"),
+        }
+    } else {
+        error!("Channel closed!");
+    }
 }
