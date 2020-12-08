@@ -23,6 +23,7 @@ sudo dnf -y install gmp-devel
 
 ...and you should be good to go!
 
-# Tested working toolchains
+## Tested working toolchains
 nightly-2020-06-23
+
 Will break like a __ when cargo update is ran. Don't do it. Or do it for shiz and gigles
