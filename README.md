@@ -1,7 +1,12 @@
 # Proof of Latency
 A protocol that creates a publicly verifiable proof of latency between two peers by using two VDFs.
 
-![Protocol Diagram](protocol.png)
+[Theory](https://github.com/JaniAnttonen/gradu)
+
+## Flamegraph
+**With 150k iterations:**
+
+![Flamegraph](flamegraph_150k_iterations_128bit.svg)
 
 ## Prerequisites
 Currently requires Linux to run with GNU Multiple Precision Library.
