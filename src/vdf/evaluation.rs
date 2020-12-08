@@ -146,10 +146,12 @@ impl VDF {
                 None => {
                     // Upper bound reached, stops iteration
                     // and calculates the proof
-                    debug!(
+                    println!(
                         "Upper bound of {:?} reached, generating proof.",
                         self.result.iterations
                     );
+
+                    println!("{:?}", self.result.result);
 
                     // Copy pregenerated cap
                     let mut self_cap: Int = self.cap.clone();
