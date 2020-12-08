@@ -5,3 +5,6 @@ test_debug:
 
 debug:
 	env RUST_LOG=debug cargo run
+
+release:
+	cargo build --release
