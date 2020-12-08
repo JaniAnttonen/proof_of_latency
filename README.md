@@ -1,7 +1,7 @@
 # Proof of Latency
 A protocol that creates a publicly verifiable proof of latency between two peers by using two VDFs.
 
-Theory: https://github.com/JaniAnttonen/gradu
+[Theory](https://github.com/JaniAnttonen/gradu)
 
 ## Prerequisites
 Currently requires Linux to run with GNU Multiple Precision Library.
@@ -18,6 +18,7 @@ sudo dnf -y install gmp-devel
 
 ...and you should be good to go!
 
-# Tested working toolchains
+## Tested working toolchains
 nightly-2020-06-23
+
 Will break like a __ when cargo update is ran. Don't do it. Or do it for shiz and gigles
