@@ -268,21 +268,20 @@ impl ProofOfLatency {
                     }
                     // VERIFIER: Receive g1, Start VDF, Send g2 + l2
                     Variant::WaitingByCreateGeneratorPartAndCap(m) => {
-                        // Construct the VDF
-                        let mut verif_vdf = VDF::new(
-                            self.modulus.as_ref().unwrap().clone(),
-                            Int::zero(),
-                            self.upper_bound.as_ref().unwrap().clone(),
-                        );
+                        let verif_vdf: VDF;
                         // Receive g1, construct hash(g1+g2)
                         if let Ok(message) = user_input.recv() {
                             match message {
                                 PoLMessage::GeneratorPart { num } => {
-                                    verif_vdf.generator = self
-                                        .combine_generator_parts(
+                                    // Construct the VDF
+                                    verif_vdf = VDF::new(
+                                        self.modulus.clone().unwrap(),
+                                        self.combine_generator_parts(
                                             &our_generator_part,
                                             &num,
-                                        );
+                                        ),
+                                        self.upper_bound.clone().unwrap(),
+                                    );
                                 }
                                 _ => {
                                     self.abort("WaitingByCreateGeneratorPart: Expected PoLMessage::GeneratorPart, received something else");
@@ -314,12 +313,7 @@ impl ProofOfLatency {
                     }
                     // PROVER: Receive g2 and l2, Start VDF
                     Variant::WaitingBySendGeneratorPart(m) => {
-                        // Construct the VDF
-                        let mut prover_vdf = VDF::new(
-                            self.modulus.as_ref().unwrap().clone(),
-                            Int::zero(),
-                            self.upper_bound.as_ref().unwrap().clone(),
-                        );
+                        let prover_vdf: VDF;
 
                         if let Ok(message) = user_input.recv() {
                             match message {
@@ -327,12 +321,16 @@ impl ProofOfLatency {
                                     generator_part,
                                     cap,
                                 } => {
-                                    prover_vdf.generator = self
-                                        .combine_generator_parts(
+                                    // Construct the VDF
+                                    prover_vdf = VDF::new(
+                                        self.modulus.clone().unwrap(),
+                                        self.combine_generator_parts(
                                             &our_generator_part,
                                             &generator_part,
-                                        );
-                                    prover_vdf.cap = cap;
+                                        ),
+                                        self.upper_bound.clone().unwrap(),
+                                    )
+                                    .with_cap(cap);
                                 }
                                 _ => {
                                     self.abort("WaitingBySendGeneratorPart: Expected PoLMessage::GeneratorPartAndCap, received something else");
@@ -344,7 +342,6 @@ impl ProofOfLatency {
                             break;
                         }
 
-                        println!("{:#?}", prover_vdf);
                         let (_, receiver) = prover_vdf.run_vdf_worker();
                         self.vdf_result_channel = Some(receiver);
 
@@ -605,7 +602,6 @@ mod tests {
         if let Ok(message) = output.recv() {
             match message {
                 PoLMessage::VDFProofAndCap { proof, cap } => {
-                    println!("{:#?}", proof);
                     assert!(proof.verify());
                     assert!(Verification::verify_prime(cap));
                 }

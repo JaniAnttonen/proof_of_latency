@@ -52,7 +52,6 @@ mod tests {
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
-                println!("{:#?}", proof);
                 assert!(proof.verify());
 
                 let our_proof = proof;
@@ -60,7 +59,6 @@ mod tests {
                 if let Ok(res2) = receiver2.recv() {
                     if let Ok(proof2) = res2 {
                         assert!(proof2.verify());
-                        println!("{:#?}", proof2);
                         let their_proof = proof2;
                         assert_eq!(our_proof, their_proof);
                     }
@@ -94,8 +92,6 @@ mod tests {
         )
         .calculate()
         .unwrap();
-
-        println!("{:#?}", proof);
 
         assert!(proof.verify());
     }
@@ -144,7 +140,6 @@ mod tests {
                 assert_eq!(proof2, first_proof);
                 assert!(first_proof.verify());
                 assert!(proof2.verify());
-                println!("Proof1: {:#?}, Proof2: {:#?}", first_proof, proof2);
             }
         }
     }
