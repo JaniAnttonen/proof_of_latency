@@ -268,11 +268,11 @@ fn handle_input_line(kademlia: &mut Kademlia<MemoryStore>, line: String) {
     }
 }
 
-#[cfg(test)]
+/* #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn run_p2p() {
         assert!(run().is_ok());
     }
-}
+} */
