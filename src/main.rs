@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate log;
-use proof_of_latency::{vdf, ProofOfLatency};
+use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
 use ramp::Int;
 use ramp_primes::Generator;
 use std::str::FromStr;
@@ -8,46 +8,52 @@ use std::str::FromStr;
 fn main() {
     env_logger::init();
 
-    let mut pol = ProofOfLatency::default();
+    // p2p::run();
+
+    let modulus = Int::from_str(RSA_2048).unwrap();
+    let mut pol =
+        ProofOfLatency::default().new(modulus, 150000, String::from(""));
+    let (input, output) = pol.open_io();
     debug!("Proof of latency instance created");
 
-    let modulus = Int::from_str(proof_of_latency::RSA_2048).unwrap();
-    debug!("RSA modulus formed!");
+    match pol.start(PoLRole::Prover) {
+        Ok(_) => info!("PoL state machine started"),
+        Err(_) => error!("Couldn't start the PoL state machine"),
+    }
 
-    let prime = Generator::new_safe_prime(32);
-    debug!("Key exchange done!");
-
-    let base = vdf::util::hash(&prime.to_string(), &modulus);
-    debug!("Variables created");
-
-    let verifiers_vdf = vdf::VDF::new(modulus.clone(), base.clone(), 128);
-    debug!("Verifier's VDF created");
-
-    pol.start(modulus, base, u32::MAX);
-    debug!("Proof of Latency calculation started");
-
-    let (_, receiver) = verifiers_vdf.run_vdf_worker();
-    debug!("Verifier's VDF worker running");
-
-    if let Ok(res) = receiver.recv() {
-        debug!("Got the proof from verifier!");
-        if let Ok(proof) = res {
-            pol.receive(proof);
+    if let Ok(message) = output.recv() {
+        match message {
+            PoLMessage::GeneratorPart { num } => {
+                info!("Generator part received: {:?}", num)
+            }
+            _ => error!("Wrong message received"),
         }
+    } else {
+        error!("Channel closed!")
     }
 
-    let ver_proof_correct = pol.verifier_result.unwrap().verify();
-    let pro_proof_correct = pol.prover_result.unwrap().verify();
-
-    if ver_proof_correct {
-        info!("Verifier proof correct!");
-    } else {
-        error!("Verifier proof incorrect!");
+    let cap = Generator::new_safe_prime(128);
+    let generator_part = Generator::new_uint(128);
+    match input.send(PoLMessage::GeneratorPartAndCap {
+        generator_part,
+        cap,
+    }) {
+        Ok(_) => info!("Received g2, l2"),
+        Err(_) => error!("Channel closed!"),
     }
 
-    if pro_proof_correct {
-        info!("Prover proof correct!");
+    if let Ok(message) = output.recv() {
+        match message {
+            PoLMessage::VDFProofAndCap { proof, cap: _ } => {
+                if proof.verify() {
+                    info!("VDF ready!")
+                } else {
+                    error!("Our VDF proof was not correct!")
+                }
+            }
+            _ => error!("Wrong message received"),
+        }
     } else {
-        error!("Prover proof incorrect!");
+        error!("Channel closed!");
     }
 }
