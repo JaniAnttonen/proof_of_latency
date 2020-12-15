@@ -1,13 +1,13 @@
-use ramp::Int;
-
 use crate::vdf::evaluation;
+use ramp::Int;
+use rayon::prelude::*;
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ProofIterable {
     pub pi: Int,
     pub r: Int,
     pub b: Int,
-    pub i: u32,
+    pub i: u32, // Replace with enumerate()?
 }
 
 /// Proof of an already calculated VDF that gets passed around between peers
@@ -24,12 +24,17 @@ pub struct VDFProof {
 impl Iterator for VDFProof {
     type Item = ProofIterable;
     fn next(&mut self) -> Option<ProofIterable> {
-        self.iterable.b = &self.two * &self.iterable.r / &self.cap;
-        self.iterable.r = (&self.two * &self.iterable.r) % &self.cap;
-        self.iterable.pi = self.iterable.pi.pow_mod(&self.two, &self.modulus)
-            * self.generator.pow_mod(&self.iterable.b, &self.modulus);
-        self.iterable.pi %= &self.modulus;
+        let two_r = &self.two * &self.iterable.r;
+
+        self.iterable.b = &two_r / &self.cap;
+
+        let pi_x = self.iterable.pi.pow_mod(&self.two, &self.modulus);
+        let pi_y = self.generator.pow_mod(&self.iterable.b, &self.modulus);
+        self.iterable.pi = pi_x * pi_y % &self.modulus;
+        self.iterable.r = &two_r % &self.cap;
+
         self.iterable.i += 1;
+
         match self.iterable.i <= self.output.iterations {
             true => Some(self.iterable.clone()),
             false => None,
@@ -52,6 +57,12 @@ impl VDFProof {
         result: &evaluation::VDFResult,
         cap: &Int,
     ) -> Self {
+        // TODO: Add functional calculation here, no need to store the _final
+        // state_ in the proof itself (r, b, i, two)
+        // Create a separate function for iterating over vec![pi: Int, r: Int,
+        // b: Int], use rayon's enumerate() Or even vec![pi: Int, rb:
+        // vec![r: Int, b: Int]]?
+
         VDFProof {
             modulus: modulus.clone(),
             generator: generator.clone(),
