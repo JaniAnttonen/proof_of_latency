@@ -38,33 +38,40 @@ impl VDFProof {
 
     pub fn calculate(&mut self) -> Option<VDFProof> {
         let iterations = usize::try_from(self.output.iterations).unwrap();
-        let two = &Int::from(2);
-        let cap = &self.cap;
-        let mut r: Vec<Int> = Vec::with_capacity(iterations);
-        // Calculate r values
-        (0..iterations)
-            .skip(1)
-            .for_each(|i| r[i] = &r[i - 1] * two % cap);
+        match iterations {
+            0 => None,
+            _ => {
+                let two = &Int::from(2);
+                let cap = &self.cap;
+                let mut r: Vec<Int> = Vec::with_capacity(iterations);
+                r.push(Int::from(1));
 
-        // Construct a parallel iterator for values of b
-        let b = r.into_par_iter().map(|r| two * r / cap);
-        let pi_y: Vec<Int> = b
-            .map(|b| self.generator.pow_mod(&b, &self.modulus))
-            .collect();
+                // Calculate r values
+                (0..iterations)
+                    .skip(1)
+                    .for_each(|i| r.push(&r[i - 1] * two % cap));
 
-        let pi_last = |mut pi: Int| {
-            for y in pi_y {
-                pi = pi.pow_mod(two, &self.modulus) * y % &self.modulus;
+                // Construct a parallel iterator for values of b
+                let b = r.into_par_iter().map(|r| two * r / cap);
+                let pi_y: Vec<Int> = b
+                    .map(|b| self.generator.pow_mod(&b, &self.modulus))
+                    .collect();
+
+                let pi_last = |mut pi: Int| {
+                    for y in pi_y {
+                        pi = pi.pow_mod(two, &self.modulus) * y % &self.modulus;
+                    }
+                    pi
+                };
+                let pi = pi_last(Int::from(1));
+
+                if pi != self.pi {
+                    self.pi = pi;
+                    Some(self.clone())
+                } else {
+                    None
+                }
             }
-            pi
-        };
-        let pi = pi_last(Int::from(1));
-
-        if pi != self.pi {
-            self.pi = pi;
-            Some(self.clone())
-        } else {
-            None
         }
     }
 
