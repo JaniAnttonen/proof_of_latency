@@ -121,7 +121,7 @@ mod tests {
 
         if let Ok(res) = receiver.recv() {
             if let Ok(proof) = res {
-                assert!(proof.iterable.pi != 1);
+                assert!(proof.pi != 1);
                 first_proof = proof;
             }
         }

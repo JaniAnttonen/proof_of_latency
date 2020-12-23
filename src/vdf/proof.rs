@@ -1,14 +1,7 @@
 use crate::vdf::evaluation;
 use ramp::Int;
 use rayon::prelude::*;
-
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-pub struct ProofIterable {
-    pub pi: Int,
-    pub r: Int,
-    pub b: Int,
-    pub i: u32, // Replace with enumerate()?
-}
+use std::convert::TryFrom;
 
 /// Proof of an already calculated VDF that gets passed around between peers
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -17,36 +10,7 @@ pub struct VDFProof {
     pub generator: Int,
     pub output: evaluation::VDFResult,
     pub cap: Int,
-    pub iterable: ProofIterable,
-    two: Int,
-}
-
-impl Iterator for VDFProof {
-    type Item = ProofIterable;
-    fn next(&mut self) -> Option<ProofIterable> {
-        let two_r = &self.two * &self.iterable.r;
-
-        self.iterable.b = &two_r / &self.cap;
-
-        let pi_x = self.iterable.pi.pow_mod(&self.two, &self.modulus);
-        let pi_y = self.generator.pow_mod(&self.iterable.b, &self.modulus);
-        self.iterable.pi = pi_x * pi_y % &self.modulus;
-        self.iterable.r = &two_r % &self.cap;
-
-        self.iterable.i += 1;
-
-        match self.iterable.i <= self.output.iterations {
-            true => Some(self.iterable.clone()),
-            false => None,
-        }
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.output.iterations as usize > usize::MAX {
-            (0, None)
-        } else {
-            (0, Some(self.output.iterations as usize))
-        }
-    }
+    pub pi: Int,
 }
 
 impl VDFProof {
@@ -68,27 +32,39 @@ impl VDFProof {
             generator: generator.clone(),
             output: result.clone(),
             cap: cap.clone(),
-            iterable: ProofIterable {
-                pi: Int::from(1),
-                r: Int::from(1),
-                b: Int::zero(),
-                i: 0,
-            },
-            two: Int::from(2),
+            pi: Int::zero(),
         }
     }
 
-    // pub fn to_iter(&self) -> rayon::iter::IterBridge<VDFProof> {
-    //     self.clone().into_iter()
-    // }
-
     pub fn calculate(&mut self) -> Option<VDFProof> {
-        match self.last() {
-            Some(proof) => {
-                self.iterable = proof;
-                Some(self.clone())
+        let iterations = usize::try_from(self.output.iterations).unwrap();
+        let two = &Int::from(2);
+        let cap = &self.cap;
+        let mut r: Vec<Int> = Vec::with_capacity(iterations);
+        // Calculate r values
+        (0..iterations)
+            .skip(1)
+            .for_each(|i| r[i] = &r[i - 1] * two % cap);
+
+        // Construct a parallel iterator for values of b
+        let b = r.into_par_iter().map(|r| two * r / cap);
+        let pi_y: Vec<Int> = b
+            .map(|b| self.generator.pow_mod(&b, &self.modulus))
+            .collect();
+
+        let pi_last = |mut pi: Int| {
+            for y in pi_y {
+                pi = pi.pow_mod(two, &self.modulus) * y % &self.modulus;
             }
-            None => None,
+            pi
+        };
+        let pi = pi_last(Int::from(1));
+
+        if pi != self.pi {
+            self.pi = pi;
+            Some(self.clone())
+        } else {
+            None
         }
     }
 
@@ -96,13 +72,13 @@ impl VDFProof {
     /// the VDFProof
     pub fn verify(&self) -> bool {
         // Check first that the proof belongs in the RSA group
-        if self.iterable.pi > self.modulus {
+        if self.pi > self.modulus {
             return false;
         }
         let r =
             Int::from(2).pow_mod(&Int::from(self.output.iterations), &self.cap);
         self.output.result
-            == (self.iterable.pi.pow_mod(&self.cap, &self.modulus)
+            == (self.pi.pow_mod(&self.cap, &self.modulus)
                 * self.generator.pow_mod(&r, &self.modulus))
                 % &self.modulus
     }
