@@ -3,6 +3,7 @@ use ramp_primes::Generator;
 use ramp_primes::Verification;
 use std::cmp::Ordering;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Instant;
 use std::{thread, time};
 
 use crate::vdf;
@@ -141,14 +142,15 @@ impl VDF {
             channel();
         let (worker_sender, caller_receiver) = channel();
 
+        let timer = Instant::now();
         thread::spawn(move || loop {
             match self.next() {
                 None => {
                     // Upper bound reached, stops iteration
                     // and calculates the proof
                     debug!(
-                        "Upper bound of {:?} reached, generating proof.",
-                        self.result.iterations
+                        "Upper bound of {:?} reached in {:?} milliseconds, generating proof.",
+                        self.result.iterations, timer.elapsed().as_millis()
                     );
 
                     // Copy pregenerated cap
@@ -184,7 +186,7 @@ impl VDF {
                     // iteration
                     if let Ok(cap) = worker_receiver.try_recv() {
                         // Cap received
-                        debug!("Received the cap {:?}, generating proof.", cap);
+                        debug!("Received the cap {:?} after {:?} milliseconds, generating proof.", cap, timer.elapsed().as_millis());
 
                         // Check for primality
                         if self.validate_cap(&cap) {

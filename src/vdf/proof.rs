@@ -2,6 +2,7 @@ use crate::vdf::evaluation;
 use ramp::Int;
 use rayon::prelude::*;
 use std::convert::TryFrom;
+use std::time::Instant;
 
 /// Proof of an already calculated VDF that gets passed around between peers
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,12 +22,6 @@ impl VDFProof {
         result: &evaluation::VDFResult,
         cap: &Int,
     ) -> Self {
-        // TODO: Add functional calculation here, no need to store the _final
-        // state_ in the proof itself (r, b, i, two)
-        // Create a separate function for iterating over vec![pi: Int, r: Int,
-        // b: Int], use rayon's enumerate() Or even vec![pi: Int, rb:
-        // vec![r: Int, b: Int]]?
-
         VDFProof {
             modulus: modulus.clone(),
             generator: generator.clone(),
@@ -37,6 +32,7 @@ impl VDFProof {
     }
 
     pub fn calculate(&mut self) -> Option<VDFProof> {
+        let timer = Instant::now();
         match usize::try_from(self.output.iterations) {
             Err(_) => {
                 error!("Using PoL on a platform with no u32 support!");
@@ -59,8 +55,16 @@ impl VDFProof {
                         // Construct a parallel iterator for values of b
                         let b = r.into_par_iter().map(|r| two * r / cap);
                         let pi_y: Vec<Int> = b
+                            .into_par_iter()
                             .map(|b| self.generator.pow_mod(&b, &self.modulus))
                             .collect();
+
+                        debug!(
+                            "Calculating all pi_y has taken {:?} milliseconds",
+                            timer.elapsed().as_millis()
+                        );
+                        // Up until this point this could be calculated in
+                        // parallel to the VDF itself
 
                         let pi_last = |mut pi: Int| {
                             for y in pi_y {
@@ -70,6 +74,11 @@ impl VDFProof {
                             pi
                         };
                         let pi = pi_last(Int::from(1));
+
+                        debug!(
+                            "Proof generation took {:?} milliseconds",
+                            timer.elapsed().as_millis()
+                        );
 
                         if pi != self.pi {
                             self.pi = pi;

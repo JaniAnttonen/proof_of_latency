@@ -29,5 +29,6 @@ features = ["user-hooks"]
 
 [profile.release]
 lto = true
-debug = true # Here only for flamegraph use. Comment out whenever not needed
+opt-level = 3
+# debug = true # Here only for flamegraph use. Comment out whenever not needed
 
