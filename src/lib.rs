@@ -14,7 +14,7 @@ use std::thread;
 // Internal imports
 pub mod p2p;
 pub mod vdf;
-use vdf::evaluation::VDF;
+use vdf::evaluation::{VDF, VDFResult};
 use vdf::proof::VDFProof;
 use vdf::InvalidCapError;
 
@@ -95,6 +95,10 @@ pub enum PoLMessage {
     GeneratorPartAndCap {
         generator_part: Int,
         cap: Int,
+    },
+
+    VDFResult {
+        result: VDFResult,
     },
 
     VDFProof {
