@@ -14,7 +14,7 @@ use std::thread;
 // Internal imports
 pub mod p2p;
 pub mod vdf;
-use vdf::evaluation::{VDF, VDFResult};
+use vdf::evaluation::{VDFResult, VDF};
 use vdf::proof::VDFProof;
 use vdf::InvalidCapError;
 
