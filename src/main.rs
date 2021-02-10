@@ -12,7 +12,7 @@ fn main() {
 
     let modulus = Int::from_str(RSA_2048).unwrap();
     let mut pol =
-        ProofOfLatency::default().new(modulus, 150000, String::from(""));
+        ProofOfLatency::default().init(modulus, 150000, String::from(""));
     let (input, output) = pol.open_io();
     debug!("Proof of latency instance created");
 

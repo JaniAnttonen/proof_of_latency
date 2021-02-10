@@ -176,13 +176,13 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn new(
+    pub fn init(
         mut self,
         modulus: Int,
         upper_bound: u32,
         pubkey: String,
     ) -> Self {
-        self.modulus = Some(modulus.clone());
+        self.modulus = Some(modulus);
         self.generator = None;
         self.upper_bound = Some(upper_bound);
         self.pubkey = Some(pubkey);
@@ -528,7 +528,7 @@ mod tests {
     fn runs_without_blocking() {
         let modulus = Int::from_str(RSA_2048).unwrap();
         let mut pol =
-            ProofOfLatency::default().new(modulus, u32::MAX, String::from(""));
+            ProofOfLatency::default().init(modulus, u32::MAX, String::from(""));
 
         let (_input, _output) = pol.open_io();
 
@@ -541,7 +541,7 @@ mod tests {
         let rand1 = Generator::new_uint(128);
         let rand2 = Generator::new_uint(128);
         let pol =
-            ProofOfLatency::default().new(modulus, u32::MAX, String::from(""));
+            ProofOfLatency::default().init(modulus, u32::MAX, String::from(""));
         let result1 = pol.combine_generator_parts(&rand1, &rand2);
         let result2 = pol.combine_generator_parts(&rand2, &rand1);
         assert_eq!(result1, result2);
@@ -550,7 +550,7 @@ mod tests {
     #[test]
     fn runs_prover_state_machine_in_correct_order() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol = ProofOfLatency::default().new(
+        let mut pol = ProofOfLatency::default().init(
             modulus,
             42,
             String::from("hiughbeihviurehvifesljkvhjkreshghles"),
