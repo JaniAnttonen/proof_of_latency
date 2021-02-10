@@ -8,7 +8,8 @@ use ramp_primes::Generator;
 use std::error::Error;
 use std::fmt;
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use crossbeam::channel::unbounded;
+use crossbeam::channel::{Receiver, Sender};
 use std::thread;
 
 // Internal imports
@@ -190,9 +191,9 @@ impl ProofOfLatency {
 
     pub fn open_io(&mut self) -> (Sender<PoLMessage>, Receiver<PoLMessage>) {
         let (input, listener): (Sender<PoLMessage>, Receiver<PoLMessage>) =
-            channel();
+            unbounded();
         let (sender, output): (Sender<PoLMessage>, Receiver<PoLMessage>) =
-            channel();
+            unbounded();
         self.user_input_listener = Some(listener);
         self.user_output_sender = Some(sender);
         (input, output)

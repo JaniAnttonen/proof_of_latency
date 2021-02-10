@@ -1,8 +1,9 @@
+use crossbeam::channel::unbounded;
+use crossbeam::channel::{Receiver, Sender};
 use ramp::Int;
 use ramp_primes::Generator;
 use ramp_primes::Verification;
 use std::cmp::Ordering;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::Instant;
 use std::{thread, time};
 
@@ -139,8 +140,8 @@ impl VDF {
         Receiver<Result<vdf::proof::VDFProof, vdf::InvalidCapError>>,
     ) {
         let (caller_sender, worker_receiver): (Sender<Int>, Receiver<Int>) =
-            channel();
-        let (worker_sender, caller_receiver) = channel();
+            unbounded();
+        let (worker_sender, caller_receiver) = unbounded();
 
         let timer = Instant::now();
         thread::spawn(move || loop {
