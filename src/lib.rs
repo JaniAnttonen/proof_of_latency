@@ -113,10 +113,6 @@ pub enum PoLMessage {
     ProofOfLatency {
         prover: VDFProof,
         verifier: VDFProof,
-        prover_pub_key: String,
-        verifier_pub_key: String,
-        prover_signature: String,
-        verifier_signature: String,
     },
 
     Error {
@@ -420,10 +416,6 @@ impl ProofOfLatency {
                                 .as_ref()
                                 .unwrap()
                                 .clone(),
-                            verifier_pub_key: self.pubkey.clone().unwrap(),
-                            prover_pub_key: String::from(""),
-                            verifier_signature: String::from(""),
-                            prover_signature: String::from(""),
                         }) {
                             Ok(_) => {
                                 m.transition(EndVerifierEvaluation).as_enum()
@@ -440,32 +432,17 @@ impl ProofOfLatency {
                                 PoLMessage::ProofOfLatency {
                                     prover,
                                     verifier,
-                                    prover_pub_key,
-                                    verifier_pub_key,
-                                    prover_signature,
-                                    verifier_signature,
                                 } => {
-                                    if verifier_pub_key != String::from("")
-                                        && verifier_signature
-                                            != String::from("")
-                                    {
-                                        match user_output.send(
-                                            PoLMessage::ProofOfLatency {
-                                                verifier,
-                                                prover,
-                                                verifier_pub_key,
-                                                prover_pub_key,
-                                                verifier_signature,
-                                                prover_signature,
-                                            },
-                                        ) {
-                                            Ok(_) => m
-                                                .transition(SignVerifierVDF)
-                                                .as_enum(),
-                                            Err(_) => break,
-                                        }
-                                    } else {
-                                        break;
+                                    match user_output.send(
+                                        PoLMessage::ProofOfLatency {
+                                            verifier,
+                                            prover,
+                                        },
+                                    ) {
+                                        Ok(_) => m
+                                            .transition(SignVerifierVDF)
+                                            .as_enum(),
+                                        Err(_) => break,
                                     }
                                 }
                                 _ => {
