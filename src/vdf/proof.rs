@@ -49,19 +49,22 @@ impl VDFProof {
         }
     }
 
+    /// Parallel proof calculator. This should be nudged in parallel to the
+    /// evaluator, in the end generating a proof on a false nudge value. Cap
+    /// must be defined before VDF evaluation.
     pub fn calculate_parallel(&mut self) -> (Sender<bool>, Receiver<VDFProof>) {
         let (nudger, nudge_listener): (Sender<bool>, Receiver<bool>) =
             unbounded();
         let (sender, output): (Sender<VDFProof>, Receiver<VDFProof>) =
             unbounded();
-        let self_clone = self.clone();
 
+        let mut self_clone = self.clone();
         thread::spawn(move || {
             let two = &Int::from(2);
-            let cap = self_clone.cap;
-            let r = Int::from(1);
-            let b = r;
-            let pi = Int::from(1);
+            let cap = &self_clone.cap;
+            let mut r = &Int::from(1);
+            let mut b: Int;
+            let mut pi = Int::from(1);
             loop {
                 if let Ok(nudge) = nudge_listener.recv() {
                     match nudge {
@@ -76,8 +79,8 @@ impl VDFProof {
                                 % &self_clone.modulus;
                         }
                         false => {
-                            self_clone.pi = pi;
-                            sender.send(self_clone);
+                            self_clone.pi = pi.clone();
+                            sender.send(self_clone.clone());
                         }
                     }
                 } else {

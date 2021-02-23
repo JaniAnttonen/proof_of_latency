@@ -69,8 +69,14 @@ fn calculate_and_send_proof(
     cap: &Int,
     worker_sender: &Sender<Result<vdf::proof::VDFProof, vdf::InvalidCapError>>,
 ) {
-    let proof =
-        vdf::proof::VDFProof::new(modulus, generator, result, cap).calculate();
+    let proof = vdf::proof::VDFProof::new(
+        modulus,
+        generator,
+        result,
+        cap,
+        vdf::proof::ProofType::Sequential,
+    )
+    .calculate();
 
     match proof {
         None => error!("Failed to generate a proof!"),
