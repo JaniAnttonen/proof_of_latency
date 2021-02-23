@@ -1,7 +1,10 @@
 use crate::vdf::evaluation;
+use crossbeam::channel::unbounded;
+use crossbeam::channel::{Receiver, Sender};
 use ramp::Int;
 use rayon::prelude::*;
 use std::convert::TryFrom;
+use std::thread;
 use std::time::Instant;
 
 /// Proof of an already calculated VDF that gets passed around between peers
@@ -12,6 +15,19 @@ pub struct VDFProof {
     pub output: evaluation::VDFResult,
     pub cap: Int,
     pub pi: Int,
+    pub proof_type: ProofType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProofType {
+    Sequential,
+    Parallel,
+}
+
+impl Default for ProofType {
+    fn default() -> Self {
+        ProofType::Sequential
+    }
 }
 
 impl VDFProof {
@@ -21,6 +37,7 @@ impl VDFProof {
         generator: &Int,
         result: &evaluation::VDFResult,
         cap: &Int,
+        proof_type: ProofType,
     ) -> Self {
         VDFProof {
             modulus: modulus.clone(),
@@ -28,7 +45,48 @@ impl VDFProof {
             output: result.clone(),
             cap: cap.clone(),
             pi: Int::zero(),
+            proof_type: proof_type,
         }
+    }
+
+    pub fn calculate_parallel(&mut self) -> (Sender<bool>, Receiver<VDFProof>) {
+        let (nudger, nudge_listener): (Sender<bool>, Receiver<bool>) =
+            unbounded();
+        let (sender, output): (Sender<VDFProof>, Receiver<VDFProof>) =
+            unbounded();
+        let self_clone = self.clone();
+
+        thread::spawn(move || {
+            let two = &Int::from(2);
+            let cap = self_clone.cap;
+            let r = Int::from(1);
+            let b = r;
+            let pi = Int::from(1);
+            loop {
+                if let Ok(nudge) = nudge_listener.recv() {
+                    match nudge {
+                        true => {
+                            // calculate next proof
+                            r = r * two % cap;
+                            b = two * r / cap;
+                            pi = pi.pow_mod(two, &self_clone.modulus)
+                                * self_clone
+                                    .generator
+                                    .pow_mod(&b, &self_clone.modulus)
+                                % &self_clone.modulus;
+                        }
+                        false => {
+                            self_clone.pi = pi;
+                            sender.send(self_clone);
+                        }
+                    }
+                } else {
+                    return;
+                }
+            }
+        });
+
+        (nudger, output)
     }
 
     pub fn calculate(&mut self) -> Option<VDFProof> {
