@@ -186,7 +186,7 @@ impl VDF {
         let timer = Instant::now();
         thread::spawn(move || loop {
             if let Some(nudger) = self.proof_nudger.as_ref() {
-                if nudger.send(true).is_err() {
+                if nudger.try_send(true).is_err() {
                     break;
                 }
             }
