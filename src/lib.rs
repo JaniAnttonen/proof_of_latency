@@ -331,7 +331,7 @@ impl ProofOfLatency {
                                             &generator_part,
                                         ),
                                         self.upper_bound.clone().unwrap(),
-                                        vdf::proof::ProofType::Sequential,
+                                        vdf::proof::ProofType::Parallel,
                                     )
                                     .with_cap(cap);
                                 }
