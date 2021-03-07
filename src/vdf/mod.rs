@@ -41,11 +41,20 @@ mod tests {
         // Create two VDFs with same inputs to check if they end up in the same
         // result
         let cap = Int::from(7);
-        let verifiers_vdf =
-            evaluation::VDF::new(modulus.clone(), root_hashed.clone(), 32)
-                .with_cap(cap.clone());
-        let provers_vdf =
-            evaluation::VDF::new(modulus, root_hashed, 32).with_cap(cap);
+        let verifiers_vdf = evaluation::VDF::new(
+            modulus.clone(),
+            root_hashed.clone(),
+            32,
+            proof::ProofType::Sequential,
+        )
+        .with_cap(cap.clone());
+        let provers_vdf = evaluation::VDF::new(
+            modulus,
+            root_hashed,
+            32,
+            proof::ProofType::Parallel,
+        )
+        .with_cap(cap);
 
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
@@ -73,7 +82,12 @@ mod tests {
         let generator = Int::from(11);
         let two = Int::from(2);
         let cap = Int::from(7);
-        let mut vdf = evaluation::VDF::new(modulus, generator, u32::MAX);
+        let mut vdf = evaluation::VDF::new(
+            modulus,
+            generator,
+            u32::MAX,
+            proof::ProofType::Sequential,
+        );
 
         vdf.result = vdf.next().unwrap();
         assert_eq!(vdf.result.result, two);
@@ -89,6 +103,7 @@ mod tests {
             &vdf.generator,
             &vdf.result,
             &cap,
+            &proof::ProofType::Sequential,
         )
         .calculate()
         .unwrap();
@@ -108,6 +123,7 @@ mod tests {
             modulus.clone(),
             root_hashed.clone(),
             u32::MAX,
+            proof::ProofType::Sequential,
         );
 
         let (capper, receiver) = vdf.run_vdf_worker();
@@ -130,6 +146,7 @@ mod tests {
             modulus,
             root_hashed,
             first_proof.output.iterations,
+            proof::ProofType::Sequential,
         )
         .with_cap(first_proof.cap.clone());
 

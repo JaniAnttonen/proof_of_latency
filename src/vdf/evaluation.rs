@@ -46,6 +46,9 @@ pub struct VDF {
     pub cap: Int,
     pub result: VDFResult,
     two: Int,
+    pub proof_type: vdf::proof::ProofType,
+    proof_nudger: Option<Sender<bool>>,
+    proof_receiver: Option<Receiver<vdf::proof::VDFProof>>,
 }
 
 impl Iterator for VDF {
@@ -74,7 +77,7 @@ fn calculate_and_send_proof(
         generator,
         result,
         cap,
-        vdf::proof::ProofType::Sequential,
+        &vdf::proof::ProofType::Sequential,
     )
     .calculate();
 
@@ -94,7 +97,12 @@ fn calculate_and_send_proof(
 impl VDF {
     /// VDF builder with default options. Can be chained with
     /// estimate_upper_bound
-    pub fn new(modulus: Int, generator: Int, upper_bound: u32) -> Self {
+    pub fn new(
+        modulus: Int,
+        generator: Int,
+        upper_bound: u32,
+        proof_type: vdf::proof::ProofType,
+    ) -> Self {
         Self {
             modulus,
             generator: generator.clone(),
@@ -105,11 +113,37 @@ impl VDF {
                 iterations: 0,
             },
             two: Int::from(2),
+            proof_type,
+            proof_nudger: None,
+            proof_receiver: None,
         }
     }
 
     /// Add a precomputed cap to the VDF
     pub fn with_cap(mut self, cap: Int) -> Self {
+        let (proof_nudger, proof_receiver): (
+            Option<Sender<bool>>,
+            Option<Receiver<vdf::proof::VDFProof>>,
+        ) = match self.proof_type {
+            vdf::proof::ProofType::Sequential => (None, None),
+            vdf::proof::ProofType::Parallel => {
+                if self.cap.gt(&Int::zero()) {
+                    let mut proof = vdf::proof::VDFProof::new(
+                        &self.modulus,
+                        &self.generator,
+                        &self.result,
+                        &self.cap,
+                        &self.proof_type,
+                    );
+                    let (nudger, receiver) = proof.calculate_parallel();
+                    (Some(nudger), Some(receiver))
+                } else {
+                    (None, None)
+                }
+            }
+        };
+        self.proof_nudger = proof_nudger;
+        self.proof_receiver = proof_receiver;
         self.cap = cap;
         self
     }
@@ -151,6 +185,12 @@ impl VDF {
 
         let timer = Instant::now();
         thread::spawn(move || loop {
+            if let Some(nudger) = self.proof_nudger.as_ref() {
+                if nudger.send(true).is_err() {
+                    break;
+                }
+            }
+
             match self.next() {
                 None => {
                     // Upper bound reached, stops iteration
@@ -177,33 +217,62 @@ impl VDF {
                         break;
                     }
 
-                    calculate_and_send_proof(
-                        &self.modulus,
-                        &self.generator,
-                        &self.result,
-                        &self_cap,
-                        &worker_sender,
-                    );
+                    match self.proof_receiver {
+                        None => calculate_and_send_proof(
+                            &self.modulus,
+                            &self.generator,
+                            &self.result,
+                            &self_cap,
+                            &worker_sender,
+                        ),
+                        Some(receiver) => {
+                            match receiver.recv() {
+                                Ok(proof) => {
+                                    if worker_sender.send(Ok(proof)).is_err() {
+                                        error!("Couldn't send proof to worker listener!");
+                                    }
+                                }
+                                Err(_) => {
+                                    error!("Error with parallel proof calculation!");
+                                }
+                            }
+                        }
+                    }
 
                     break;
                 }
                 Some(result) => {
                     self.result = result;
-                    // Try receiving a cap from the other participant on each
-                    // iteration
+                    // Try receiving a cap from the other participant on
+                    // each iteration
                     if let Ok(cap) = worker_receiver.try_recv() {
                         // Cap received
                         debug!("Received the cap {:?} after {:?} milliseconds, generating proof.", cap, timer.elapsed().as_millis());
 
                         // Check for primality
                         if self.validate_cap(&cap) {
-                            calculate_and_send_proof(
-                                &self.modulus,
-                                &self.generator,
-                                &self.result,
-                                &cap,
-                                &worker_sender,
-                            );
+                            match self.proof_receiver {
+                                None => calculate_and_send_proof(
+                                    &self.modulus,
+                                    &self.generator,
+                                    &self.result,
+                                    &cap,
+                                    &worker_sender,
+                                ),
+                                Some(receiver) => match receiver.recv() {
+                                    Ok(proof) => {
+                                        if worker_sender
+                                            .send(Ok(proof))
+                                            .is_err()
+                                        {
+                                            error!("Couldn't send proof to worker listener!");
+                                        }
+                                    }
+                                    Err(_) => {
+                                        error!("Error with parallel proof calculation!");
+                                    }
+                                },
+                            }
                         } else {
                             error!("Received cap was not a prime!");
                             // Received cap was not a prime, send error to

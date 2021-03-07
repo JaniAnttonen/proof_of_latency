@@ -37,7 +37,7 @@ impl VDFProof {
         generator: &Int,
         result: &evaluation::VDFResult,
         cap: &Int,
-        proof_type: ProofType,
+        proof_type: &ProofType,
     ) -> Self {
         VDFProof {
             modulus: modulus.clone(),
@@ -45,7 +45,7 @@ impl VDFProof {
             output: result.clone(),
             cap: cap.clone(),
             pi: Int::zero(),
-            proof_type: proof_type,
+            proof_type: proof_type.clone(),
         }
     }
 
@@ -61,26 +61,28 @@ impl VDFProof {
         let mut self_clone = self.clone();
         thread::spawn(move || {
             let two = &Int::from(2);
-            let cap = &self_clone.cap;
-            let mut r = &Int::from(1);
+            let mut r: Int = Int::from(1);
             let mut b: Int;
-            let mut pi = Int::from(1);
             loop {
                 if let Ok(nudge) = nudge_listener.recv() {
                     match nudge {
                         true => {
                             // calculate next proof
-                            r = r * two % cap;
-                            b = two * r / cap;
-                            pi = pi.pow_mod(two, &self_clone.modulus)
-                                * self_clone
-                                    .generator
-                                    .pow_mod(&b, &self_clone.modulus)
-                                % &self_clone.modulus;
+                            r = r * two % &self_clone.cap;
+                            b = two * &r / &self_clone.cap;
+                            self_clone.pi =
+                                self_clone.pi.pow_mod(two, &self_clone.modulus)
+                                    * self_clone
+                                        .generator
+                                        .pow_mod(&b, &self_clone.modulus)
+                                    % &self_clone.modulus;
                         }
                         false => {
-                            self_clone.pi = pi.clone();
-                            sender.send(self_clone.clone());
+                            if sender.send(self_clone).is_ok() {
+                                return;
+                            }
+                            error!("Couldn't send parallelly calculated VDF proof to the evaluator!");
+                            return;
                         }
                     }
                 } else {
