@@ -39,7 +39,7 @@ impl VDFProof {
         cap: &Int,
         proof_type: &ProofType,
     ) -> Self {
-        VDFProof {
+        Self {
             modulus: modulus.clone(),
             generator: generator.clone(),
             output: result.clone(),
@@ -57,37 +57,39 @@ impl VDFProof {
             unbounded();
         let (sender, output): (Sender<VDFProof>, Receiver<VDFProof>) =
             unbounded();
-
         let mut self_clone = self.clone();
         thread::spawn(move || {
             let two = &Int::from(2);
             let mut r: Int = Int::from(1);
             let mut b: Int;
+            let modulus: &Int = &self_clone.modulus;
+            let generator: &Int = &self_clone.generator;
+            let cap: &Int = &self_clone.cap;
+            let mut pi = Int::zero();
+
             loop {
                 if let Ok(nudge) = nudge_listener.recv() {
                     match nudge {
                         true => {
                             // calculate next proof
-                            r = r * two % &self_clone.cap;
-                            b = two * &r / &self_clone.cap;
-                            self_clone.pi =
-                                self_clone.pi.pow_mod(two, &self_clone.modulus)
-                                    * self_clone
-                                        .generator
-                                        .pow_mod(&b, &self_clone.modulus)
-                                    % &self_clone.modulus;
+                            r = r * two % cap;
+                            b = two * &r / cap;
+                            pi = pi.pow_mod(two, modulus)
+                                * generator.pow_mod(&b, modulus)
+                                % modulus;
                         }
                         false => {
-                            if sender.send(self_clone).is_ok() {
-                                return;
-                            }
-                            error!("Couldn't send parallelly calculated VDF proof to the evaluator!");
-                            return;
+                            break;
                         }
                     }
                 } else {
-                    return;
+                    break;
                 }
+            }
+            debug!("Nudger received false, sending current proof");
+            self_clone.pi = pi;
+            if sender.send(self_clone).is_err() {
+                error!("Couldn't send parallelly calculated VDF proof to the evaluator!");
             }
         });
 

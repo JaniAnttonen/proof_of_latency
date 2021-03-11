@@ -127,12 +127,12 @@ impl VDF {
         ) = match self.proof_type {
             vdf::proof::ProofType::Sequential => (None, None),
             vdf::proof::ProofType::Parallel => {
-                if self.cap.gt(&Int::zero()) {
+                if cap.gt(&Int::zero()) {
                     let mut proof = vdf::proof::VDFProof::new(
                         &self.modulus,
                         &self.generator,
                         &self.result,
-                        &self.cap,
+                        &cap,
                         &self.proof_type,
                     );
                     let (nudger, receiver) = proof.calculate_parallel();
@@ -187,7 +187,7 @@ impl VDF {
         thread::spawn(move || loop {
             if let Some(nudger) = self.proof_nudger.as_ref() {
                 if nudger.try_send(true).is_err() {
-                    break;
+                    error!("Couldn't nudge the parallel proof!")
                 }
             }
 
@@ -226,8 +226,12 @@ impl VDF {
                             &worker_sender,
                         ),
                         Some(receiver) => {
-                            match receiver.recv() {
+                            debug!("Waiting for proof receiver");
+
+                            // TODO: This shouldn't "try" but actually do.
+                            match receiver.try_recv() {
                                 Ok(proof) => {
+                                    debug!("Received proof from parallel proof calculator!");
                                     if worker_sender.send(Ok(proof)).is_err() {
                                         error!("Couldn't send proof to worker listener!");
                                     }

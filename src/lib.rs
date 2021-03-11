@@ -334,6 +334,7 @@ impl ProofOfLatency {
                                         vdf::proof::ProofType::Parallel,
                                     )
                                     .with_cap(cap);
+                                    debug!("{:?}", prover_vdf);
                                 }
                                 _ => {
                                     self.abort("WaitingBySendGeneratorPart: Expected PoLMessage::GeneratorPartAndCap, received something else");
