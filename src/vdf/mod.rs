@@ -34,24 +34,24 @@ mod tests {
 
     #[test]
     fn is_deterministic() {
-        let modulus = Int::from_str("91").unwrap();
+        let modulus = Int::from_str(RSA_2048).unwrap();
         let prime = Generator::new_safe_prime(128);
         let root_hashed = util::hash(&prime.to_string(), &modulus);
 
         // Create two VDFs with same inputs to check if they end up in the same
         // result
-        let cap = Int::from(7);
+        let cap = Generator::new_safe_prime(128);
         let verifiers_vdf = evaluation::VDF::new(
             modulus.clone(),
             root_hashed.clone(),
-            32,
+            256,
             proof::ProofType::Sequential,
         )
         .with_cap(cap.clone());
         let provers_vdf = evaluation::VDF::new(
             modulus,
             root_hashed,
-            32,
+            256,
             proof::ProofType::Parallel,
         )
         .with_cap(cap);
@@ -69,7 +69,12 @@ mod tests {
                     if let Ok(proof2) = res2 {
                         assert!(proof2.verify());
                         let their_proof = proof2;
-                        assert_eq!(our_proof, their_proof);
+                        assert_eq!(
+                            our_proof.output.result,
+                            their_proof.output.result
+                        );
+                        assert!(our_proof.pi > Int::from(1));
+                        assert_eq!(our_proof.pi, their_proof.pi);
                     }
                 }
             }

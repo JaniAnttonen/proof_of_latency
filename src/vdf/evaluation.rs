@@ -185,12 +185,6 @@ impl VDF {
 
         let timer = Instant::now();
         thread::spawn(move || loop {
-            if let Some(nudger) = self.proof_nudger.as_ref() {
-                if nudger.try_send(true).is_err() {
-                    error!("Couldn't nudge the parallel proof!")
-                }
-            }
-
             match self.next() {
                 None => {
                     // Upper bound reached, stops iteration
@@ -228,10 +222,16 @@ impl VDF {
                         Some(receiver) => {
                             debug!("Waiting for proof receiver");
 
-                            // TODO: This shouldn't "try" but actually do.
-                            match receiver.try_recv() {
-                                Ok(proof) => {
-                                    debug!("Received proof from parallel proof calculator!");
+                            if let Some(nudger) = self.proof_nudger.as_ref() {
+                                if nudger.send(false).is_err() {
+                                    error!("Couldn't nudge the parallel proof!")
+                                }
+                            }
+                            match receiver.recv() {
+                                Ok(mut proof) => {
+                                    // Clone our result to the received proof
+                                    proof.output = self.result.clone();
+                                    debug!("Received proof from parallel proof calculator! {:?}", proof);
                                     if worker_sender.send(Ok(proof)).is_err() {
                                         error!("Couldn't send proof to worker listener!");
                                     }
@@ -247,6 +247,13 @@ impl VDF {
                 }
                 Some(result) => {
                     self.result = result;
+
+                    if let Some(nudger) = self.proof_nudger.as_ref() {
+                        if nudger.try_send(true).is_err() {
+                            error!("Couldn't nudge the parallel proof!")
+                        }
+                    }
+
                     // Try receiving a cap from the other participant on
                     // each iteration
                     if let Ok(cap) = worker_receiver.try_recv() {
@@ -264,7 +271,11 @@ impl VDF {
                                     &worker_sender,
                                 ),
                                 Some(receiver) => match receiver.recv() {
-                                    Ok(proof) => {
+                                    Ok(mut proof) => {
+                                        // Clone our result to the received
+                                        // proof
+                                        proof.output = self.result.clone();
+                                        debug!("Received proof from parallel proof calculator! {:?}", proof);
                                         if worker_sender
                                             .send(Ok(proof))
                                             .is_err()

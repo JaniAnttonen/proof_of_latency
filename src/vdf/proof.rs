@@ -65,18 +65,19 @@ impl VDFProof {
             let modulus: &Int = &self_clone.modulus;
             let generator: &Int = &self_clone.generator;
             let cap: &Int = &self_clone.cap;
-            let mut pi = Int::zero();
+            let mut pi = Int::from(1);
 
             loop {
                 if let Ok(nudge) = nudge_listener.recv() {
                     match nudge {
                         true => {
                             // calculate next proof
-                            r = r * two % cap;
                             b = two * &r / cap;
                             pi = pi.pow_mod(two, modulus)
                                 * generator.pow_mod(&b, modulus)
                                 % modulus;
+                            r = r * two % cap;
+                            continue;
                         }
                         false => {
                             break;
@@ -86,6 +87,7 @@ impl VDFProof {
                     break;
                 }
             }
+
             debug!("Nudger received false, sending current proof");
             self_clone.pi = pi;
             if sender.send(self_clone).is_err() {
@@ -128,8 +130,6 @@ impl VDFProof {
                             "Calculating all pi_y has taken {:?} milliseconds",
                             timer.elapsed().as_millis()
                         );
-                        // Up until this point this could be calculated in
-                        // parallel to the VDF itself
 
                         let pi_last = |mut pi: Int| {
                             for y in pi_y {
