@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate log;
+use proof_of_latency::p2p;
 use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
 use ramp::Int;
 use ramp_primes::Generator;
@@ -8,7 +9,8 @@ use std::str::FromStr;
 fn main() {
     env_logger::init();
 
-    // p2p::run();
+    let p2p_result = p2p::run_p2p();
+    debug!("{:?}", p2p_result);
 
     let modulus = Int::from_str(RSA_2048).unwrap();
     let mut pol =
