@@ -2133,6 +2133,7 @@ dependencies = [
  "ramp-primes",
  "rand 0.7.3",
  "rayon",
+ "rkyv",
  "serde",
  "serde_json",
  "sm",
@@ -2212,6 +2213,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ptr_meta"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6de4703776ff261fe3cbf05c8781f129b284e57ee35a785fe6c92b1dcf93a612"
+dependencies = [
+ "ptr_meta_derive",
+]
+
+[[package]]
+name = "ptr_meta_derive"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53005b9863728f508d3f23ae37e03d60986a01b65f7ae8397dcebaa1d5e54e10"
+dependencies = [
+ "proc-macro2 1.0.21",
+ "quote 1.0.7",
+ "syn 1.0.40",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2248,9 +2269,9 @@ dependencies = [
 
 [[package]]
 name = "ramp"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fac9147bf7d7c1eed3f0b5a8fc22aca8deeef8ec9d22f6bd18bad739ce6cf232"
+checksum = "476c1644e2e08e9893a882f94d0a60352c8c6a59d46c05fcd08779313d187469"
 dependencies = [
  "cc",
  "hamming",
@@ -2456,6 +2477,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "rkyv"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f181406deb3d7bd6c889cc40cee48ec95503dc96981a18979bda28c3f5f3fc6"
+dependencies = [
+ "memoffset 0.6.1",
+ "ptr_meta",
+ "rkyv_derive",
+ "seahash",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8460ab714767ced2855344a673d49a7fddc5066fd0ee368ce40a6425c4d774f8"
+dependencies = [
+ "proc-macro2 1.0.21",
+ "quote 1.0.7",
+ "syn 1.0.40",
+]
+
+[[package]]
 name = "rustc-cfg"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2559,6 +2603,12 @@ dependencies = [
  "ring",
  "untrusted",
 ]
+
+[[package]]
+name = "seahash"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "semver"

@@ -12,11 +12,18 @@ use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
 use std::thread;
 
+use rkyv::{
+    archived_root,
+    de::deserializers::AllocDeserializer,
+    ser::{serializers::AlignedSerializer, Serializer},
+    AlignedVec, Archive, Deserialize, Serialize,
+};
+
 // Internal imports
 pub mod p2p;
 pub mod vdf;
-use vdf::evaluation::{VDFResult, VDF};
-use vdf::proof::VDFProof;
+use vdf::evaluation::{DeserializableVDFResult, VDFResult, VDF};
+use vdf::proof::{DeserializableVDFProof, VDFProof};
 use vdf::InvalidCapError;
 
 // RSA-2048, copied from Wikipedia
@@ -83,37 +90,37 @@ pub enum PoLRole {
 
 /// All possible messages that are passed between the prover and the verifier in
 /// calculating a Proof of Latency
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Archive, Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub enum PoLMessage {
     GeneratorPart {
-        num: Int,
+        num: String,
     },
 
     Cap {
-        num: Int,
+        num: String,
     },
 
     GeneratorPartAndCap {
-        generator_part: Int,
-        cap: Int,
+        generator_part: String,
+        cap: String,
     },
 
     VDFResult {
-        result: VDFResult,
+        result: DeserializableVDFResult,
     },
 
     VDFProof {
-        proof: VDFProof,
+        proof: DeserializableVDFProof,
     },
 
     VDFProofAndCap {
-        proof: VDFProof,
-        cap: Int,
+        proof: DeserializableVDFProof,
+        cap: String,
     },
 
     ProofOfLatency {
-        prover: VDFProof,
-        verifier: VDFProof,
+        prover: DeserializableVDFProof,
+        verifier: DeserializableVDFProof,
     },
 
     Error {
@@ -261,7 +268,7 @@ impl ProofOfLatency {
                     // PROVER: Send g1
                     Variant::SendingByCreateGeneratorPartAndCap(m) => {
                         match user_output.send(PoLMessage::GeneratorPart {
-                            num: our_generator_part.clone(),
+                            num: our_generator_part.to_string(),
                         }) {
                             Ok(_) => m.transition(SendGeneratorPart).as_enum(),
                             Err(_) => break,
@@ -279,7 +286,7 @@ impl ProofOfLatency {
                                         self.modulus.clone().unwrap(),
                                         self.combine_generator_parts(
                                             &our_generator_part,
-                                            &num,
+                                            &Int::from_str(&num)?,
                                         ),
                                         self.upper_bound.clone().unwrap(),
                                         vdf::proof::ProofType::Sequential,
@@ -303,8 +310,8 @@ impl ProofOfLatency {
                         // Send g2 + l2
                         match user_output.send(
                             PoLMessage::GeneratorPartAndCap {
-                                generator_part: our_generator_part.clone(),
-                                cap: sendable_cap.clone(),
+                                generator_part: &our_generator_part.to_string(),
+                                cap: &sendable_cap.to_string(),
                             },
                         ) {
                             Ok(_) => {
@@ -328,7 +335,7 @@ impl ProofOfLatency {
                                         self.modulus.clone().unwrap(),
                                         self.combine_generator_parts(
                                             &our_generator_part,
-                                            &generator_part,
+                                            &Int::from_str(generator_part)?,
                                         ),
                                         self.upper_bound.clone().unwrap(),
                                         vdf::proof::ProofType::Parallel,
@@ -360,8 +367,8 @@ impl ProofOfLatency {
                             self.vdf_result_channel.as_ref().unwrap().recv()
                         {
                             match user_output.send(PoLMessage::VDFProofAndCap {
-                                proof: proof.unwrap(),
-                                cap: sendable_cap.clone(),
+                                proof: proof.unwrap().deserialize(),
+                                cap: sendable_cap.to_string(),
                             }) {
                                 Ok(_) => {
                                     m.transition(EndProverEvaluation).as_enum()
@@ -383,7 +390,10 @@ impl ProofOfLatency {
                             match message {
                                 PoLMessage::VDFProofAndCap { proof, cap } => {
                                     // Stop our VDF with cap l1
-                                    match self.receive(proof, cap) {
+                                    match self.receive(
+                                        proof.serialize(),
+                                        Int::from_str(cap),
+                                    ) {
                                         (
                                             Some(our_proof),
                                             Some(their_proof),
@@ -414,12 +424,12 @@ impl ProofOfLatency {
                                 .verifier_result
                                 .as_ref()
                                 .unwrap()
-                                .clone(),
+                                .deserialize(),
                             prover: self
                                 .prover_result
                                 .as_ref()
                                 .unwrap()
-                                .clone(),
+                                .deserialize(),
                         }) {
                             Ok(_) => {
                                 m.transition(EndVerifierEvaluation).as_enum()

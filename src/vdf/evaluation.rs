@@ -1,19 +1,40 @@
+use crate::vdf;
 use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
 use ramp::Int;
 use ramp_primes::Generator;
 use ramp_primes::Verification;
+use rkyv::{
+    archived_root,
+    de::deserializers::AllocDeserializer,
+    ser::{serializers::AlignedSerializer, Serializer},
+    AlignedVec, Archive, Deserialize, Serialize,
+};
 use std::cmp::Ordering;
 use std::time::Instant;
 use std::{thread, time};
-
-use crate::vdf;
 
 /// The end result of the VDF which we still need to prove
 #[derive(Debug, Clone, Default)]
 pub struct VDFResult {
     pub result: Int,
     pub iterations: u32,
+}
+
+/// A deserializable VDFResult because ramp::Int is not deserializable
+#[derive(Archive, Debug, Deserialize, Serialize, Clone, Default)]
+pub struct DeserializableVDFResult {
+    pub result: String,
+    pub iterations: u32,
+}
+
+impl DeserializableVDFResult {
+    pub fn serialize(&self) -> VDFResult {
+        VDFResult {
+            result: Int::from_str(self.result),
+            iterations: self.iterations,
+        }
+    }
 }
 
 /// Traits that make calculating differences between VDFResults easier
@@ -32,6 +53,15 @@ impl PartialOrd for VDFResult {
 impl PartialEq for VDFResult {
     fn eq(&self, other: &Self) -> bool {
         self.result == other.result && self.iterations == other.iterations
+    }
+}
+
+impl VDFResult {
+    fn deserialize(&self) -> DeserializableVDFResult {
+        DeserializableVDFResult {
+            result: self.result.as_ref().to_string(),
+            iterations: self.iterations.clone(),
+        }
     }
 }
 
