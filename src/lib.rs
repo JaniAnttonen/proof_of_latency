@@ -12,17 +12,12 @@ use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
 use std::thread;
 
-use rkyv::{
-    archived_root,
-    de::deserializers::AllocDeserializer,
-    ser::{serializers::AlignedSerializer, Serializer},
-    AlignedVec, Archive, Deserialize, Serialize,
-};
+use rkyv::{Archive, Deserialize, Serialize};
 
 // Internal imports
-pub mod p2p;
+//pub mod p2p;
 pub mod vdf;
-use vdf::evaluation::{DeserializableVDFResult, VDFResult, VDF};
+use vdf::evaluation::{DeserializableVDFResult, VDF};
 use vdf::proof::{DeserializableVDFProof, VDFProof};
 use vdf::InvalidCapError;
 
@@ -286,7 +281,8 @@ impl ProofOfLatency {
                                         self.modulus.clone().unwrap(),
                                         self.combine_generator_parts(
                                             &our_generator_part,
-                                            &Int::from_str(&num)?,
+                                            &Int::from_str_radix(&num, 10)
+                                                .unwrap(),
                                         ),
                                         self.upper_bound.clone().unwrap(),
                                         vdf::proof::ProofType::Sequential,
@@ -310,8 +306,8 @@ impl ProofOfLatency {
                         // Send g2 + l2
                         match user_output.send(
                             PoLMessage::GeneratorPartAndCap {
-                                generator_part: &our_generator_part.to_string(),
-                                cap: &sendable_cap.to_string(),
+                                generator_part: our_generator_part.to_string(),
+                                cap: sendable_cap.to_string(),
                             },
                         ) {
                             Ok(_) => {
@@ -335,12 +331,18 @@ impl ProofOfLatency {
                                         self.modulus.clone().unwrap(),
                                         self.combine_generator_parts(
                                             &our_generator_part,
-                                            &Int::from_str(generator_part)?,
+                                            &Int::from_str_radix(
+                                                &generator_part,
+                                                10,
+                                            )
+                                            .unwrap(),
                                         ),
                                         self.upper_bound.clone().unwrap(),
                                         vdf::proof::ProofType::Parallel,
                                     )
-                                    .with_cap(cap);
+                                    .with_cap(
+                                        Int::from_str_radix(&cap, 10).unwrap(),
+                                    );
                                     debug!("{:?}", prover_vdf);
                                 }
                                 _ => {
@@ -392,7 +394,7 @@ impl ProofOfLatency {
                                     // Stop our VDF with cap l1
                                     match self.receive(
                                         proof.serialize(),
-                                        Int::from_str(cap),
+                                        Int::from_str_radix(&cap, 10).unwrap(),
                                     ) {
                                         (
                                             Some(our_proof),
@@ -588,8 +590,8 @@ mod tests {
         let generator_part = Generator::new_uint(64);
         assert!(input
             .send(PoLMessage::GeneratorPartAndCap {
-                generator_part,
-                cap
+                generator_part: generator_part.to_str_radix(10, false),
+                cap: cap.to_str_radix(10, false)
             })
             .is_ok());
 
@@ -597,8 +599,10 @@ mod tests {
         if let Ok(message) = output.recv() {
             match message {
                 PoLMessage::VDFProofAndCap { proof, cap } => {
-                    assert!(proof.verify());
-                    assert!(Verification::verify_prime(cap));
+                    assert!(proof.serialize().verify());
+                    assert!(Verification::verify_prime(
+                        Int::from_str_radix(&cap, 10).unwrap()
+                    ));
                 }
                 _ => assert!(false),
             }

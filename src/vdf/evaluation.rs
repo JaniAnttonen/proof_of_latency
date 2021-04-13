@@ -4,12 +4,7 @@ use crossbeam::channel::{Receiver, Sender};
 use ramp::Int;
 use ramp_primes::Generator;
 use ramp_primes::Verification;
-use rkyv::{
-    archived_root,
-    de::deserializers::AllocDeserializer,
-    ser::{serializers::AlignedSerializer, Serializer},
-    AlignedVec, Archive, Deserialize, Serialize,
-};
+use rkyv::{Archive, Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::time::Instant;
 use std::{thread, time};
@@ -31,7 +26,7 @@ pub struct DeserializableVDFResult {
 impl DeserializableVDFResult {
     pub fn serialize(&self) -> VDFResult {
         VDFResult {
-            result: Int::from_str(self.result),
+            result: Int::from_str_radix(&self.result, 10).unwrap(),
             iterations: self.iterations,
         }
     }
@@ -57,15 +52,23 @@ impl PartialEq for VDFResult {
 }
 
 impl VDFResult {
-    fn deserialize(&self) -> DeserializableVDFResult {
+    pub fn deserialize(&self) -> DeserializableVDFResult {
         DeserializableVDFResult {
-            result: self.result.as_ref().to_string(),
+            result: self.result.to_str_radix(10, false),
             iterations: self.iterations.clone(),
         }
     }
 }
 
 impl Eq for VDFResult {}
+
+impl PartialEq for DeserializableVDFResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.result == other.result && self.iterations == other.iterations
+    }
+}
+
+impl Eq for DeserializableVDFResult {}
 
 /// VDF is an options struct for calculating VDFProofs
 #[derive(Debug, Clone)]

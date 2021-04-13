@@ -27,14 +27,13 @@ mod tests {
     use super::*;
     use ramp::Int;
     use ramp_primes::Generator;
-    use std::str::FromStr;
     use std::{thread, time};
 
     const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
     #[test]
     fn is_deterministic() {
-        let modulus = Int::from_str(RSA_2048).unwrap();
+        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let prime = Generator::new_safe_prime(128);
         let root_hashed = util::hash(&prime.to_string(), &modulus);
 
@@ -119,7 +118,7 @@ mod tests {
     #[test]
     fn proof_generation_should_be_same_between_predetermined_and_received_input(
     ) {
-        let modulus = Int::from_str(RSA_2048).unwrap();
+        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
         let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
 

@@ -3,12 +3,7 @@ use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
 use ramp::Int;
 use rayon::prelude::*;
-use rkyv::{
-    archived_root,
-    de::deserializers::AllocDeserializer,
-    ser::{serializers::AlignedSerializer, Serializer},
-    AlignedVec, Archive, Deserialize, Serialize,
-};
+use rkyv::{Archive, Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::thread;
 use std::time::Instant;
@@ -28,11 +23,11 @@ pub struct DeserializableVDFProof {
 impl DeserializableVDFProof {
     pub fn serialize(&self) -> VDFProof {
         VDFProof {
-            modulus: Int::from_str(self.modulus),
-            generator: Int::from_str(self.generator),
+            modulus: Int::from_str_radix(&self.modulus, 10).unwrap(),
+            generator: Int::from_str_radix(&self.generator, 10).unwrap(),
             output: self.output.serialize(),
-            cap: Int::from_str(self.cap),
-            pi: Int::from_str(self.pi),
+            cap: Int::from_str_radix(&self.cap, 10).unwrap(),
+            pi: Int::from_str_radix(&self.pi, 10).unwrap(),
             proof_type: self.proof_type.clone(),
         }
     }
@@ -80,13 +75,13 @@ impl VDFProof {
         }
     }
 
-    fn deserialize(&self) -> DeserializableVDFProof {
+    pub fn deserialize(&self) -> DeserializableVDFProof {
         DeserializableVDFProof {
-            modulus: self.modulus.to_string(),
-            generator: self.generator.to_string(),
+            modulus: self.modulus.to_str_radix(10, false),
+            generator: self.generator.to_str_radix(10, false),
             output: self.output.deserialize(),
-            cap: self.cap.to_string(),
-            pi: self.pi.to_string(),
+            cap: self.cap.to_str_radix(10, false),
+            pi: self.pi.to_str_radix(10, false),
             proof_type: self.proof_type.clone(),
         }
     }
