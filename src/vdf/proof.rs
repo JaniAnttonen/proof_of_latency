@@ -104,24 +104,20 @@ impl VDFProof {
             let cap: &Int = &self_clone.cap;
             let mut pi = Int::from(1);
 
-            loop {
-                if let Ok(nudge) = nudge_listener.recv() {
-                    match nudge {
-                        true => {
-                            // calculate next proof
-                            b = two * &r / cap;
-                            pi = pi.pow_mod(two, modulus)
-                                * generator.pow_mod(&b, modulus)
-                                % modulus;
-                            r = r * two % cap;
-                            continue;
-                        }
-                        false => {
-                            break;
-                        }
+            while let Ok(nudge) = nudge_listener.recv() {
+                match nudge {
+                    true => {
+                        // calculate next proof
+                        b = two * &r / cap;
+                        pi = pi.pow_mod(two, modulus)
+                            * generator.pow_mod(&b, modulus)
+                            % modulus;
+                        r = r * two % cap;
+                        continue;
                     }
-                } else {
-                    break;
+                    false => {
+                        break;
+                    }
                 }
             }
 

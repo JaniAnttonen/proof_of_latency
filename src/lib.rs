@@ -284,7 +284,7 @@ impl ProofOfLatency {
                                             &Int::from_str_radix(&num, 10)
                                                 .unwrap(),
                                         ),
-                                        self.upper_bound.clone().unwrap(),
+                                        self.upper_bound.unwrap(),
                                         vdf::proof::ProofType::Sequential,
                                     );
                                 }
@@ -337,7 +337,7 @@ impl ProofOfLatency {
                                             )
                                             .unwrap(),
                                         ),
-                                        self.upper_bound.clone().unwrap(),
+                                        self.upper_bound.unwrap(),
                                         vdf::proof::ProofType::Parallel,
                                     )
                                     .with_cap(
@@ -504,29 +504,28 @@ impl ProofOfLatency {
         };
 
         // Wait for response from VDF worker
-        if let Ok(res) = self.vdf_result_channel.as_ref().unwrap().recv() {
-            if let Ok(proof) = res {
-                debug!(
-                    "VDF ran for {:?} times!\nThe output being {:?}",
-                    proof.output.iterations, proof.output.result
-                );
+        if let Ok(Ok(proof)) = self.vdf_result_channel.as_ref().unwrap().recv()
+        {
+            debug!(
+                "VDF ran for {:?} times!\nThe output being {:?}",
+                proof.output.iterations, proof.output.result
+            );
 
-                let iter_prover: u32 = proof.output.iterations;
-                let iter_verifier: u32 = their_proof.output.iterations;
-                let difference: Int = if iter_prover > iter_verifier {
-                    Int::from(iter_prover - iter_verifier)
-                } else {
-                    Int::from(iter_verifier - iter_prover)
-                };
+            let iter_prover: u32 = proof.output.iterations;
+            let iter_verifier: u32 = their_proof.output.iterations;
+            let difference: Int = if iter_prover > iter_verifier {
+                Int::from(iter_prover - iter_verifier)
+            } else {
+                Int::from(iter_verifier - iter_prover)
+            };
 
-                if their_proof.verify() && proof.verify() {
-                    info!(
+            if their_proof.verify() && proof.verify() {
+                info!(
                         "Both proofs are correct! Latency between peers was {:?} iterations.",
                         difference
                     );
 
-                    return (Some(proof), Some(their_proof));
-                }
+                return (Some(proof), Some(their_proof));
             }
         }
         (None, None)

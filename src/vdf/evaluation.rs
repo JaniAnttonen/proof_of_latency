@@ -55,7 +55,7 @@ impl VDFResult {
     pub fn deserialize(&self) -> DeserializableVDFResult {
         DeserializableVDFResult {
             result: self.result.to_str_radix(10, false),
-            iterations: self.iterations.clone(),
+            iterations: self.iterations,
         }
     }
 }
@@ -196,10 +196,8 @@ impl VDF {
         thread::sleep(sleep_time);
         capper.send(cap).unwrap();
 
-        if let Ok(res) = receiver.recv() {
-            if let Ok(proof) = res {
-                self.upper_bound = proof.output.iterations;
-            }
+        if let Ok(Ok(proof)) = receiver.recv() {
+            self.upper_bound = proof.output.iterations;
         }
         self
     }
