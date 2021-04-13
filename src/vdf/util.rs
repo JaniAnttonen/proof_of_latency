@@ -8,7 +8,7 @@ pub fn hash(s: &str, modulus: &Int) -> Int {
     let mut ans = Int::zero();
     for i in 0..(2 * modulus.bit_length() / 512 + 1) {
         let hash: Hash = blake3::hash(format!("{}{}", s, i).as_bytes());
-        for x in hash.as_bytes().into_iter() {
+        for x in hash.as_bytes().iter() {
             ans = (ans << 8) + Int::from(*x);
         }
     }

@@ -5,18 +5,20 @@ authors = ["Jani Anttonen <jani.anttonen@protonmail.ch>"]
 edition = "2018"
 
 [dependencies]
-ramp = "=0.5.8"
+ramp = "=0.5.9"
 ramp-primes = "0.4.1"
 blake3 = "0.3.6"
 env_logger = "0.7.1" 
 log = "0.4.8"
-libp2p = "0.28.1"
 async-std = "1.6.5"
 futures = "0.3.5"
 sm = "0.9.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 rayon = "1.1"
+wasm-timer = "0.2.4"
+void = "1"
+rand = "0.7"
+rkyv = "0.5.1"
+crossbeam = "0.8.0"
 
 [dev-dependencies]
 proptest = "0.10.0"
@@ -29,5 +31,6 @@ features = ["user-hooks"]
 
 [profile.release]
 lto = true
-debug = true # Here only for flamegraph use. Comment out whenever not needed
+opt-level = 3
+# debug = true # Here only for flamegraph use. Comment out whenever not needed
 

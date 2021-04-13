@@ -1,18 +1,19 @@
 #[macro_use]
 extern crate log;
+//use proof_of_latency::p2p;
 use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
 use ramp::Int;
 use ramp_primes::Generator;
-use std::str::FromStr;
 
 fn main() {
     env_logger::init();
 
-    // p2p::run();
+    //let p2p_result = p2p::run_p2p();
+    //debug!("{:?}", p2p_result);
 
-    let modulus = Int::from_str(RSA_2048).unwrap();
+    let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
     let mut pol =
-        ProofOfLatency::default().new(modulus, 150000, String::from(""));
+        ProofOfLatency::default().init(modulus, 150000, String::from(""));
     let (input, output) = pol.open_io();
     debug!("Proof of latency instance created");
 
@@ -35,8 +36,8 @@ fn main() {
     let cap = Generator::new_safe_prime(128);
     let generator_part = Generator::new_uint(128);
     match input.send(PoLMessage::GeneratorPartAndCap {
-        generator_part,
-        cap,
+        generator_part: generator_part.to_str_radix(10, false),
+        cap: cap.to_str_radix(10, false),
     }) {
         Ok(_) => info!("Received g2, l2"),
         Err(_) => error!("Channel closed!"),
@@ -45,7 +46,7 @@ fn main() {
     if let Ok(message) = output.recv() {
         match message {
             PoLMessage::VDFProofAndCap { proof, cap: _ } => {
-                if proof.verify() {
+                if proof.serialize().verify() {
                     info!("VDF ready!")
                 } else {
                     error!("Our VDF proof was not correct!")
