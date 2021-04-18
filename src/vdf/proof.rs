@@ -31,6 +31,9 @@ impl DeserializableVDFProof {
             proof_type: self.proof_type.clone(),
         }
     }
+    pub fn verify(&self) -> bool {
+        self.serialize().verify()
+    }
 }
 
 /// Proof of an already calculated VDF that gets passed around between peers

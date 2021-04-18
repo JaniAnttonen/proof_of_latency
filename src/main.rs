@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate log;
-//use proof_of_latency::p2p;
+// use proof_of_latency::p2p;
 use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
 use ramp::Int;
 use ramp_primes::Generator;
@@ -8,8 +8,8 @@ use ramp_primes::Generator;
 fn main() {
     env_logger::init();
 
-    //let p2p_result = p2p::run_p2p();
-    //debug!("{:?}", p2p_result);
+    // let p2p_result = p2p::run_p2p();
+    // debug!("{:?}", p2p_result);
 
     let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
     let mut pol =
@@ -46,7 +46,7 @@ fn main() {
     if let Ok(message) = output.recv() {
         match message {
             PoLMessage::VDFProofAndCap { proof, cap: _ } => {
-                if proof.serialize().verify() {
+                if proof.verify() {
                     info!("VDF ready!")
                 } else {
                     error!("Our VDF proof was not correct!")

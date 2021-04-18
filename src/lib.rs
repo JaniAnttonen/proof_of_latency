@@ -15,7 +15,7 @@ use std::thread;
 use rkyv::{Archive, Deserialize, Serialize};
 
 // Internal imports
-//pub mod p2p;
+// pub mod p2p;
 pub mod vdf;
 use vdf::evaluation::{DeserializableVDFResult, VDF};
 use vdf::proof::{DeserializableVDFProof, VDFProof};
