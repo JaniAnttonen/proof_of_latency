@@ -219,8 +219,8 @@ impl ProofOfLatency {
     }
 
     fn combine_generator_parts(&self, our: &Int, other: &Int) -> Int {
-        let sum_str: String = (our + other).to_str_radix(16, true);
-        vdf::util::hash(&sum_str, &self.modulus.as_ref().unwrap())
+        let mul_str: String = (our * other).to_str_radix(16, true);
+        vdf::util::hash(&mul_str, &self.modulus.as_ref().unwrap())
     }
 
     pub fn start(mut self, role: PoLRole) -> Result<bool, PoLStartError> {
