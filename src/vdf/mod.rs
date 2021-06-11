@@ -136,7 +136,7 @@ mod tests {
 
         let (capper, receiver) = vdf.run_vdf_worker();
 
-        thread::sleep(time::Duration::from_millis(10));
+        thread::sleep(time::Duration::from_millis(50));
 
         let mut first_proof = proof::VDFProof::default();
 
