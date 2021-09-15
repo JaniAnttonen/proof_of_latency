@@ -115,11 +115,11 @@ impl VDFProof {
                 match nudge {
                     true => {
                         // calculate next proof
-                        b = TWO * &r / cap;
-                        pi = pi.pow_mod(TWO, modulus)
+                        b = &*TWO * &r / cap;
+                        pi = pi.pow_mod(&*TWO, modulus)
                             * generator.pow_mod(&b, modulus)
                             % modulus;
-                        r = r * TWO % cap;
+                        r = r * &*TWO % cap;
                         continue;
                     }
                     false => {
@@ -156,10 +156,10 @@ impl VDFProof {
                         // Calculate r values
                         (0..iter)
                             .skip(1)
-                            .for_each(|i| r.push(&r[i - 1] * TWO % cap));
+                            .for_each(|i| r.push(&r[i - 1] * &*TWO % cap));
 
                         // Construct a parallel iterator for values of b
-                        let b = r.into_par_iter().map(|r| TWO * r / cap);
+                        let b = r.into_par_iter().map(|r| &*TWO * r / cap);
                         let pi_y: Vec<Int> = b
                             .into_par_iter()
                             .map(|b| self.generator.pow_mod(&b, &self.modulus))
@@ -172,7 +172,7 @@ impl VDFProof {
 
                         let pi_last = |mut pi: Int| {
                             for y in pi_y {
-                                pi = pi.pow_mod(two, &self.modulus) * y
+                                pi = pi.pow_mod(&*TWO, &self.modulus) * y
                                     % &self.modulus;
                             }
                             pi

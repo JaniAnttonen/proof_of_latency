@@ -1,8 +1,4 @@
 #![allow(soft_unstable)]
-#[macro_use]
-extern crate test;
-extern crate lazy_static;
-
 use std::error::Error;
 use std::fmt;
 
