@@ -18,6 +18,8 @@ void = "1"
 rand = "0.7"
 rkyv = "0.5.1"
 crossbeam = "0.8.0"
+lazy_static = "1.4.0"
+ockam = { version = "0.15.0", features = ["ockam_transport_tcp", "ockam_vault"] }
 
 [dev-dependencies]
 proptest = "0.10.0"

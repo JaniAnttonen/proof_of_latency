@@ -1,12 +1,17 @@
 use crate::vdf::evaluation;
 use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
+use lazy_static::lazy_static;
 use ramp::Int;
 use rayon::prelude::*;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::thread;
 use std::time::Instant;
+
+lazy_static! {
+    static ref TWO: Int = Int::from_str_radix("2", 10).unwrap();
+}
 
 #[derive(
     Archive, Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq,
@@ -99,7 +104,6 @@ impl VDFProof {
             unbounded();
         let mut self_clone = self.clone();
         thread::spawn(move || {
-            let two = &Int::from(2);
             let mut r: Int = Int::from(1);
             let mut b: Int;
             let modulus: &Int = &self_clone.modulus;
@@ -111,11 +115,11 @@ impl VDFProof {
                 match nudge {
                     true => {
                         // calculate next proof
-                        b = two * &r / cap;
-                        pi = pi.pow_mod(two, modulus)
+                        b = TWO * &r / cap;
+                        pi = pi.pow_mod(TWO, modulus)
                             * generator.pow_mod(&b, modulus)
                             % modulus;
-                        r = r * two % cap;
+                        r = r * TWO % cap;
                         continue;
                     }
                     false => {
@@ -145,7 +149,6 @@ impl VDFProof {
                 match iter {
                     0 => None,
                     _ => {
-                        let two = &Int::from(2);
                         let cap = &self.cap;
                         let mut r: Vec<Int> = Vec::with_capacity(iter);
                         r.push(Int::from(1));
@@ -153,10 +156,10 @@ impl VDFProof {
                         // Calculate r values
                         (0..iter)
                             .skip(1)
-                            .for_each(|i| r.push(&r[i - 1] * two % cap));
+                            .for_each(|i| r.push(&r[i - 1] * TWO % cap));
 
                         // Construct a parallel iterator for values of b
-                        let b = r.into_par_iter().map(|r| two * r / cap);
+                        let b = r.into_par_iter().map(|r| TWO * r / cap);
                         let pi_y: Vec<Int> = b
                             .into_par_iter()
                             .map(|b| self.generator.pow_mod(&b, &self.modulus))
@@ -200,8 +203,7 @@ impl VDFProof {
         if self.pi > self.modulus {
             return false;
         }
-        let r =
-            Int::from(2).pow_mod(&Int::from(self.output.iterations), &self.cap);
+        let r = TWO.pow_mod(&Int::from(self.output.iterations), &self.cap);
         self.output.result
             == (self.pi.pow_mod(&self.cap, &self.modulus)
                 * self.generator.pow_mod(&r, &self.modulus))
