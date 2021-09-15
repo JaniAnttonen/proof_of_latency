@@ -60,24 +60,17 @@ mod tests {
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
 
-        if let Ok(res) = receiver.recv() {
-            if let Ok(proof) = res {
-                assert!(proof.verify());
+        if let Ok(Ok(proof)) = receiver.recv() {
+            assert!(proof.verify());
 
-                let our_proof = proof;
+            let our_proof = proof;
 
-                if let Ok(res2) = receiver2.recv() {
-                    if let Ok(proof2) = res2 {
-                        assert!(proof2.verify());
-                        let their_proof = proof2;
-                        assert_eq!(
-                            our_proof.output.result,
-                            their_proof.output.result
-                        );
-                        assert!(our_proof.pi > Int::from(1));
-                        assert_eq!(our_proof.pi, their_proof.pi);
-                    }
-                }
+            if let Ok(Ok(proof2)) = receiver2.recv() {
+                assert!(proof2.verify());
+                let their_proof = proof2;
+                assert_eq!(our_proof.output.result, their_proof.output.result);
+                assert!(our_proof.pi > Int::from(1));
+                assert_eq!(our_proof.pi, their_proof.pi);
             }
         }
     }
@@ -141,11 +134,9 @@ mod tests {
         let cap_error = capper.send(cap).is_err();
         assert!(!cap_error);
 
-        if let Ok(res) = receiver.recv() {
-            if let Ok(proof) = res {
-                assert!(proof.pi != 1);
-                first_proof = proof;
-            }
+        if let Ok(Ok(proof)) = receiver.recv() {
+            assert!(proof.pi != 1);
+            first_proof = proof;
         }
 
         let vdf2 = evaluation::VDF::new(
@@ -158,12 +149,10 @@ mod tests {
 
         let (_, receiver2) = vdf2.run_vdf_worker();
 
-        if let Ok(res2) = receiver2.recv() {
-            if let Ok(proof2) = res2 {
-                assert_eq!(proof2, first_proof);
-                assert!(first_proof.verify());
-                assert!(proof2.verify());
-            }
+        if let Ok(Ok(proof2)) = receiver2.recv() {
+            assert_eq!(proof2, first_proof);
+            assert!(first_proof.verify());
+            assert!(proof2.verify());
         }
     }
 

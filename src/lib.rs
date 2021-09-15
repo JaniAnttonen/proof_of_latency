@@ -577,11 +577,13 @@ mod tests {
         // First, we should receive a generator part
         if let Ok(message) = output.recv() {
             match message {
-                PoLMessage::GeneratorPart { num: _ } => assert!(true),
-                _ => assert!(false),
+                PoLMessage::GeneratorPart { num } => {
+                    assert!(&Int::from_str_radix(&num, 10).is_ok())
+                }
+                _ => panic!(),
             }
         } else {
-            assert!(false)
+            panic!()
         }
 
         // Then, the state machine waits for our input, specifically a generator
@@ -604,10 +606,10 @@ mod tests {
                         Int::from_str_radix(&cap, 10).unwrap()
                     ));
                 }
-                _ => assert!(false),
+                _ => panic!(),
             }
         } else {
-            assert!(false)
+            panic!()
         }
     }
 }
