@@ -1,12 +1,9 @@
 #![feature(test)]
 #[macro_use]
 extern crate log;
-
-#[macro_use]
-extern crate test;
-
 extern crate lazy_static;
 extern crate sm;
+extern crate test;
 
 use ramp::Int;
 use ramp_primes::Generator;
