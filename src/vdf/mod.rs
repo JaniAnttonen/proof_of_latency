@@ -37,7 +37,7 @@ mod tests {
     fn is_deterministic() {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let prime = Generator::new_safe_prime(128);
-        let root_hashed = util::hash(&prime.to_string(), &modulus);
+        let root_hashed = util::hash_to_mod(&prime.to_string(), &modulus);
 
         // Create two VDFs with same inputs to check if they end up in the same
         // result
@@ -115,7 +115,8 @@ mod tests {
     ) {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
-        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&hashablings2.to_string(), &modulus);
 
         let cap = Generator::new_safe_prime(16);
         let vdf = evaluation::VDF::new(
@@ -160,7 +161,8 @@ mod tests {
     fn bench_sequential(b: &mut Bencher) {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
-        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&hashablings2.to_string(), &modulus);
         let cap_str = Generator::new_safe_prime(64).to_str_radix(10, false);
         b.iter(|| {
             let cap = Int::from_str_radix(&cap_str, 10).unwrap();
@@ -184,7 +186,8 @@ mod tests {
     fn bench_parallel(b: &mut Bencher) {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
-        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&hashablings2.to_string(), &modulus);
         let cap_str = Generator::new_safe_prime(64).to_str_radix(10, false);
         b.iter(|| {
             let cap = Int::from_str_radix(&cap_str, 10).unwrap();

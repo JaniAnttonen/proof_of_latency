@@ -149,7 +149,6 @@ pub struct ProofOfLatency {
     pub modulus: Option<Int>,
     pub generator: Option<Int>,
     pub upper_bound: Option<u32>,
-    pub pubkey: Option<String>,
     // Channels for discussing with the VDF
     vdf_capper: Option<Sender<Int>>,
     vdf_result_channel: Option<Receiver<Result<VDFProof, InvalidCapError>>>,
@@ -167,7 +166,6 @@ impl Default for ProofOfLatency {
             modulus: None,
             generator: None,
             upper_bound: None,
-            pubkey: None,
             vdf_capper: None,
             vdf_result_channel: None,
             prover_result: None,
@@ -179,16 +177,10 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn init(
-        mut self,
-        modulus: Int,
-        upper_bound: u32,
-        pubkey: String,
-    ) -> Self {
+    pub fn init(mut self, modulus: Int, upper_bound: u32) -> Self {
         self.modulus = Some(modulus);
         self.generator = None;
         self.upper_bound = Some(upper_bound);
-        self.pubkey = Some(pubkey);
         self
     }
 
@@ -220,7 +212,7 @@ impl ProofOfLatency {
 
     fn combine_generator_parts(&self, our: &Int, other: &Int) -> Int {
         let mul_str: String = (our * other).to_str_radix(16, true);
-        vdf::util::hash(&mul_str, &self.modulus.as_ref().unwrap())
+        vdf::util::hash_to_mod(&mul_str, &self.modulus.as_ref().unwrap())
     }
 
     pub fn start(mut self, role: PoLRole) -> Result<bool, PoLStartError> {
@@ -542,8 +534,7 @@ mod tests {
     #[test]
     fn runs_without_blocking() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol =
-            ProofOfLatency::default().init(modulus, u32::MAX, String::from(""));
+        let mut pol = ProofOfLatency::default().init(modulus, u32::MAX);
 
         let (_input, _output) = pol.open_io();
 
@@ -555,8 +546,7 @@ mod tests {
         let modulus = Int::from_str(RSA_2048).unwrap();
         let rand1 = Generator::new_uint(128);
         let rand2 = Generator::new_uint(128);
-        let pol =
-            ProofOfLatency::default().init(modulus, u32::MAX, String::from(""));
+        let pol = ProofOfLatency::default().init(modulus, u32::MAX);
         let result1 = pol.combine_generator_parts(&rand1, &rand2);
         let result2 = pol.combine_generator_parts(&rand2, &rand1);
         assert_eq!(result1, result2);
@@ -565,11 +555,7 @@ mod tests {
     #[test]
     fn runs_prover_state_machine_in_correct_order() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol = ProofOfLatency::default().init(
-            modulus,
-            42,
-            String::from("hiughbeihviurehvifesljkvhjkreshghles"),
-        );
+        let mut pol = ProofOfLatency::default().init(modulus, 42);
         let (input, output) = pol.open_io();
 
         assert!(pol.start(PoLRole::Prover).is_ok());
