@@ -26,8 +26,7 @@ pub fn hash_to_mod(s: &str, modulus: &Int) -> Int {
 /// A hash function that deterministically hashes the input to a prime number
 pub fn hash_to_prime(s: &str, lower_bound: &Int) -> Int {
     let n = lower_bound.bit_length();
-    let hash = hash_to_int(s, n);
-    let mut result = hash;
+    let mut result = hash_to_int(s, n);
 
     loop {
         result.set_bit(0, true);
