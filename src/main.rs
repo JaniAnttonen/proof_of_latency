@@ -45,12 +45,15 @@ fn main() {
     let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
 
     let timer = Instant::now();
-    let prime1 = hash_to_prime("asdfhjaefhliuefeaji", &modulus);
+    let prime1 = hash_to_prime("asdfhjaefhliuefeajie", &modulus);
     debug!(
         "Prime {:?} calculated in {:?}ms",
         prime1,
         timer.elapsed().as_millis()
     );
+
+    let diff = &prime1 - &modulus;
+    debug!("The prime is {:?} larger than the modulus!", diff);
 
     let mut pol = ProofOfLatency::default().init(modulus, 150000);
     let (input, output) = pol.open_io();
