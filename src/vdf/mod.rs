@@ -1,6 +1,4 @@
 #![allow(soft_unstable)]
-extern crate test;
-
 use std::error::Error;
 use std::fmt;
 
@@ -39,7 +37,7 @@ mod tests {
     fn is_deterministic() {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let prime = Generator::new_safe_prime(128);
-        let root_hashed = util::hash(&prime.to_string(), &modulus);
+        let root_hashed = util::hash_to_mod(&prime.to_string(), &modulus);
 
         // Create two VDFs with same inputs to check if they end up in the same
         // result
@@ -62,24 +60,17 @@ mod tests {
         let (_, receiver) = verifiers_vdf.run_vdf_worker();
         let (_, receiver2) = provers_vdf.run_vdf_worker();
 
-        if let Ok(res) = receiver.recv() {
-            if let Ok(proof) = res {
-                assert!(proof.verify());
+        if let Ok(Ok(proof)) = receiver.recv() {
+            assert!(proof.verify());
 
-                let our_proof = proof;
+            let our_proof = proof;
 
-                if let Ok(res2) = receiver2.recv() {
-                    if let Ok(proof2) = res2 {
-                        assert!(proof2.verify());
-                        let their_proof = proof2;
-                        assert_eq!(
-                            our_proof.output.result,
-                            their_proof.output.result
-                        );
-                        assert!(our_proof.pi > Int::from(1));
-                        assert_eq!(our_proof.pi, their_proof.pi);
-                    }
-                }
+            if let Ok(Ok(proof2)) = receiver2.recv() {
+                assert!(proof2.verify());
+                let their_proof = proof2;
+                assert_eq!(our_proof.output.result, their_proof.output.result);
+                assert!(our_proof.pi > Int::from(1));
+                assert_eq!(our_proof.pi, their_proof.pi);
             }
         }
     }
@@ -124,7 +115,8 @@ mod tests {
     ) {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
-        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&hashablings2.to_string(), &modulus);
 
         let cap = Generator::new_safe_prime(16);
         let vdf = evaluation::VDF::new(
@@ -143,11 +135,9 @@ mod tests {
         let cap_error = capper.send(cap).is_err();
         assert!(!cap_error);
 
-        if let Ok(res) = receiver.recv() {
-            if let Ok(proof) = res {
-                assert!(proof.pi != 1);
-                first_proof = proof;
-            }
+        if let Ok(Ok(proof)) = receiver.recv() {
+            assert!(proof.pi != 1);
+            first_proof = proof;
         }
 
         let vdf2 = evaluation::VDF::new(
@@ -160,12 +150,10 @@ mod tests {
 
         let (_, receiver2) = vdf2.run_vdf_worker();
 
-        if let Ok(res2) = receiver2.recv() {
-            if let Ok(proof2) = res2 {
-                assert_eq!(proof2, first_proof);
-                assert!(first_proof.verify());
-                assert!(proof2.verify());
-            }
+        if let Ok(Ok(proof2)) = receiver2.recv() {
+            assert_eq!(proof2, first_proof);
+            assert!(first_proof.verify());
+            assert!(proof2.verify());
         }
     }
 
@@ -173,7 +161,8 @@ mod tests {
     fn bench_sequential(b: &mut Bencher) {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
-        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&hashablings2.to_string(), &modulus);
         let cap_str = Generator::new_safe_prime(64).to_str_radix(10, false);
         b.iter(|| {
             let cap = Int::from_str_radix(&cap_str, 10).unwrap();
@@ -197,7 +186,8 @@ mod tests {
     fn bench_parallel(b: &mut Bencher) {
         let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
-        let root_hashed = util::hash(&hashablings2.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&hashablings2.to_string(), &modulus);
         let cap_str = Generator::new_safe_prime(64).to_str_radix(10, false);
         b.iter(|| {
             let cap = Int::from_str_radix(&cap_str, 10).unwrap();

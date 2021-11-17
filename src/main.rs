@@ -1,19 +1,61 @@
 #[macro_use]
 extern crate log;
-// use proof_of_latency::p2p;
+
+use proof_of_latency::vdf::util::hash_to_prime;
 use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
 use ramp::Int;
 use ramp_primes::Generator;
+use std::time::Instant;
+// use ockam::{Context, Result, Route, SecureChannel, TcpTransport, Vault, TCP};
 
+// #[ockam::node]
 fn main() {
     env_logger::init();
 
-    // let p2p_result = p2p::run_p2p();
-    // debug!("{:?}", p2p_result);
+    //   // Initialize the TCP Transport.
+    //   let tcp = TcpTransport::create(&ctx).await?;
+    //
+    //   // Create a TCP connection.
+    //   tcp.connect("127.0.0.1:3000").await?;
+    //
+    //   let vault = Vault::create(&ctx).await?;
+    //
+    //   // Connect to a secure channel listener and perform a handshake.
+    //   let channel = SecureChannel::create(
+    //       &mut ctx,
+    //       // route to the secure channel listener
+    //       Route::new()
+    //           .append_t(TCP, "127.0.0.1:4000") // responder node
+    //           .append("secure_channel_listener"), // secure_channel_listener
+    // on responder node,       &vault,
+    //   )
+    //       .await?;
+    //
+    //   // Send a message to the echoer worker via the channel.
+    //   ctx.send(
+    //       Route::new().append(channel.address()).append("echoer"),
+    //       "Hello Ockam!".to_string(),
+    //   )
+    //       .await?;
+    //
+    //   // Wait to receive a reply and print it.
+    //   let reply = ctx.receive::<String>().await?;
+    //   println!("App Received: {}", reply); // should print "Hello Ockam!"
 
     let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
-    let mut pol =
-        ProofOfLatency::default().init(modulus, 150000, String::from(""));
+
+    let timer = Instant::now();
+    let prime1 = hash_to_prime("asdfhjaefhliuefeajie", &modulus);
+    debug!(
+        "Prime {:?} calculated in {:?}ms",
+        prime1,
+        timer.elapsed().as_millis()
+    );
+
+    let diff = &prime1 - &modulus;
+    debug!("The prime is {:?} larger than the modulus!", diff);
+
+    let mut pol = ProofOfLatency::default().init(modulus, 150000);
     let (input, output) = pol.open_io();
     debug!("Proof of latency instance created");
 
@@ -57,4 +99,7 @@ fn main() {
     } else {
         error!("Channel closed!");
     }
+
+    //   // Stop all workers, stop the node, cleanup and return.
+    //   ctx.stop().await
 }

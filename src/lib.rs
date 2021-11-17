@@ -1,7 +1,9 @@
 #![feature(test)]
 #[macro_use]
 extern crate log;
+extern crate lazy_static;
 extern crate sm;
+extern crate test;
 
 use ramp::Int;
 use ramp_primes::Generator;
@@ -18,14 +20,14 @@ use rkyv::{Archive, Deserialize, Serialize};
 // Internal imports
 // pub mod p2p;
 pub mod vdf;
+use crate::PoL::*;
+use sm::sm;
 use vdf::evaluation::{DeserializableVDFResult, VDF};
 use vdf::proof::{DeserializableVDFProof, VDFProof};
 use vdf::InvalidCapError;
 
 // RSA-2048, copied from Wikipedia
 pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
-
-use sm::sm;
 
 // State machine macro for handling the protocol state
 sm!(
@@ -74,8 +76,6 @@ sm!(
       }
   }
 );
-
-use crate::PoL::*;
 
 /// Proof of Latency roles – Prover / Verifier
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,7 +149,6 @@ pub struct ProofOfLatency {
     pub modulus: Option<Int>,
     pub generator: Option<Int>,
     pub upper_bound: Option<u32>,
-    pub pubkey: Option<String>,
     // Channels for discussing with the VDF
     vdf_capper: Option<Sender<Int>>,
     vdf_result_channel: Option<Receiver<Result<VDFProof, InvalidCapError>>>,
@@ -167,7 +166,6 @@ impl Default for ProofOfLatency {
             modulus: None,
             generator: None,
             upper_bound: None,
-            pubkey: None,
             vdf_capper: None,
             vdf_result_channel: None,
             prover_result: None,
@@ -179,16 +177,10 @@ impl Default for ProofOfLatency {
 }
 
 impl ProofOfLatency {
-    pub fn init(
-        mut self,
-        modulus: Int,
-        upper_bound: u32,
-        pubkey: String,
-    ) -> Self {
+    pub fn init(mut self, modulus: Int, upper_bound: u32) -> Self {
         self.modulus = Some(modulus);
         self.generator = None;
         self.upper_bound = Some(upper_bound);
-        self.pubkey = Some(pubkey);
         self
     }
 
@@ -220,7 +212,7 @@ impl ProofOfLatency {
 
     fn combine_generator_parts(&self, our: &Int, other: &Int) -> Int {
         let mul_str: String = (our * other).to_str_radix(16, true);
-        vdf::util::hash(&mul_str, &self.modulus.as_ref().unwrap())
+        vdf::util::hash_to_mod(&mul_str, &self.modulus.as_ref().unwrap())
     }
 
     pub fn start(mut self, role: PoLRole) -> Result<bool, PoLStartError> {
@@ -542,8 +534,7 @@ mod tests {
     #[test]
     fn runs_without_blocking() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol =
-            ProofOfLatency::default().init(modulus, u32::MAX, String::from(""));
+        let mut pol = ProofOfLatency::default().init(modulus, u32::MAX);
 
         let (_input, _output) = pol.open_io();
 
@@ -555,8 +546,7 @@ mod tests {
         let modulus = Int::from_str(RSA_2048).unwrap();
         let rand1 = Generator::new_uint(128);
         let rand2 = Generator::new_uint(128);
-        let pol =
-            ProofOfLatency::default().init(modulus, u32::MAX, String::from(""));
+        let pol = ProofOfLatency::default().init(modulus, u32::MAX);
         let result1 = pol.combine_generator_parts(&rand1, &rand2);
         let result2 = pol.combine_generator_parts(&rand2, &rand1);
         assert_eq!(result1, result2);
@@ -565,11 +555,7 @@ mod tests {
     #[test]
     fn runs_prover_state_machine_in_correct_order() {
         let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol = ProofOfLatency::default().init(
-            modulus,
-            42,
-            String::from("hiughbeihviurehvifesljkvhjkreshghles"),
-        );
+        let mut pol = ProofOfLatency::default().init(modulus, 42);
         let (input, output) = pol.open_io();
 
         assert!(pol.start(PoLRole::Prover).is_ok());
@@ -577,11 +563,13 @@ mod tests {
         // First, we should receive a generator part
         if let Ok(message) = output.recv() {
             match message {
-                PoLMessage::GeneratorPart { num: _ } => assert!(true),
-                _ => assert!(false),
+                PoLMessage::GeneratorPart { num } => {
+                    assert!(&Int::from_str_radix(&num, 10).is_ok())
+                }
+                _ => panic!(),
             }
         } else {
-            assert!(false)
+            panic!()
         }
 
         // Then, the state machine waits for our input, specifically a generator
@@ -604,10 +592,10 @@ mod tests {
                         Int::from_str_radix(&cap, 10).unwrap()
                     ));
                 }
-                _ => assert!(false),
+                _ => panic!(),
             }
         } else {
-            assert!(false)
+            panic!()
         }
     }
 }

@@ -18,6 +18,11 @@ void = "1"
 rand = "0.7"
 rkyv = "0.5.1"
 crossbeam = "0.8.0"
+lazy_static = "1.4.0"
+ockam = { version = "0.15.0", features = ["ockam_transport_tcp", "ockam_vault"] }
+sled = "0.34.7"
+merkletree = "0.21.0"
+zkp-merkle-tree = { git = "https://github.com/JaniAnttonen/OpenZKP", path = "crypto/merkle-tree" }
 
 [dev-dependencies]
 proptest = "0.10.0"

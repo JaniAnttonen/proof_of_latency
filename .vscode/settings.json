@@ -1,0 +1,9 @@
+{
+  "rust-client.engine": "rust-analyzer",
+  "rust.clippy_preference": "on",
+  "rust.rust-analyzer": {
+  
+    "releaseTag": "nightly",
+    "path": null
+  }
+}
