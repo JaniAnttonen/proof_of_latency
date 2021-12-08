@@ -26,31 +26,30 @@ impl Error for InvalidCapError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rsa;
     use ramp::Int;
     use ramp_primes::Generator;
     use std::{thread, time};
     use test::Bencher;
 
-    const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
-
     #[test]
     fn is_deterministic() {
-        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
         let prime = Generator::new_safe_prime(128);
-        let root_hashed = util::hash_to_mod(&prime.to_string(), &modulus);
+        let root_hashed =
+            util::hash_to_mod(&prime.to_string(), &*rsa::RSA_2048);
 
         // Create two VDFs with same inputs to check if they end up in the same
         // result
         let cap = Generator::new_safe_prime(128);
         let verifiers_vdf = evaluation::VDF::new(
-            modulus.clone(),
+            rsa::RSA_2048.clone(),
             root_hashed.clone(),
             256,
             proof::ProofType::Sequential,
         )
         .with_cap(cap.clone());
         let provers_vdf = evaluation::VDF::new(
-            modulus,
+            rsa::RSA_2048.clone(),
             root_hashed,
             256,
             proof::ProofType::Parallel,
@@ -89,13 +88,13 @@ mod tests {
         );
 
         vdf.result = vdf.next().unwrap();
-        assert_eq!(vdf.result.result, two);
+        assert_eq!(vdf.result.result.current(), two);
 
         vdf.result = vdf.next().unwrap();
-        assert_eq!(vdf.result.result, Int::from(4));
+        assert_eq!(vdf.result.result.current(), Int::from(4));
 
         vdf.result = vdf.next().unwrap();
-        assert_eq!(vdf.result.result, Int::from(16));
+        assert_eq!(vdf.result.result.current(), Int::from(16));
 
         let proof = proof::VDFProof::new(
             &vdf.modulus,
@@ -113,7 +112,7 @@ mod tests {
     #[test]
     fn proof_generation_should_be_same_between_predetermined_and_received_input(
     ) {
-        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
+        let modulus = Int::from_str_radix(rsa::RSA_2048_STR, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
         let root_hashed =
             util::hash_to_mod(&hashablings2.to_string(), &modulus);
@@ -159,7 +158,7 @@ mod tests {
 
     #[bench]
     fn bench_sequential(b: &mut Bencher) {
-        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
+        let modulus = Int::from_str_radix(rsa::RSA_2048_STR, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
         let root_hashed =
             util::hash_to_mod(&hashablings2.to_string(), &modulus);
@@ -184,7 +183,7 @@ mod tests {
     }
     #[bench]
     fn bench_parallel(b: &mut Bencher) {
-        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
+        let modulus = Int::from_str_radix(rsa::RSA_2048_STR, 10).unwrap();
         let hashablings2 = &"ghsalkghsakhgaligheliah<lifehf esipf";
         let root_hashed =
             util::hash_to_mod(&hashablings2.to_string(), &modulus);

@@ -1,17 +1,14 @@
+use crate::rsa;
 use crate::vdf::evaluation;
+
 use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
-use lazy_static::lazy_static;
 use ramp::Int;
 use rayon::prelude::*;
 use rkyv::{Archive, Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::thread;
 use std::time::Instant;
-
-lazy_static! {
-    static ref TWO: Int = Int::from_str_radix("2", 10).unwrap();
-}
 
 #[derive(
     Archive, Debug, Deserialize, Serialize, Clone, Default, PartialEq, Eq,
@@ -115,11 +112,11 @@ impl VDFProof {
                 match nudge {
                     true => {
                         // calculate next proof
-                        b = &*TWO * &r / cap;
-                        pi = pi.pow_mod(&*TWO, modulus)
+                        b = &*rsa::TWO * &r / cap;
+                        pi = pi.pow_mod(&*rsa::TWO, modulus)
                             * generator.pow_mod(&b, modulus)
                             % modulus;
-                        r = r * &*TWO % cap;
+                        r = r * &*rsa::TWO % cap;
                         continue;
                     }
                     false => {
@@ -156,10 +153,10 @@ impl VDFProof {
                         // Calculate r values
                         (0..iter)
                             .skip(1)
-                            .for_each(|i| r.push(&r[i - 1] * &*TWO % cap));
+                            .for_each(|i| r.push(&r[i - 1] * &*rsa::TWO % cap));
 
                         // Construct a parallel iterator for values of b
-                        let b = r.into_par_iter().map(|r| &*TWO * r / cap);
+                        let b = r.into_par_iter().map(|r| &*rsa::TWO * r / cap);
                         let pi_y: Vec<Int> = b
                             .into_par_iter()
                             .map(|b| self.generator.pow_mod(&b, &self.modulus))
@@ -172,7 +169,7 @@ impl VDFProof {
 
                         let pi_last = |mut pi: Int| {
                             for y in pi_y {
-                                pi = pi.pow_mod(&*TWO, &self.modulus) * y
+                                pi = pi.pow_mod(&*rsa::TWO, &self.modulus) * y
                                     % &self.modulus;
                             }
                             pi
@@ -203,8 +200,8 @@ impl VDFProof {
         if self.pi > self.modulus {
             return false;
         }
-        let r = TWO.pow_mod(&Int::from(self.output.iterations), &self.cap);
-        self.output.result
+        let r = rsa::TWO.pow_mod(&Int::from(self.output.iterations), &self.cap);
+        self.output.result.current()
             == (self.pi.pow_mod(&self.cap, &self.modulus)
                 * self.generator.pow_mod(&r, &self.modulus))
                 % &self.modulus

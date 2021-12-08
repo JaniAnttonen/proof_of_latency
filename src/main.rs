@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate log;
 
+use proof_of_latency::rsa::RSA_2048;
 use proof_of_latency::vdf::util::hash_to_prime;
-use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency, RSA_2048};
-use ramp::Int;
+use proof_of_latency::{PoLMessage, PoLRole, ProofOfLatency};
+
 use ramp_primes::Generator;
 use std::time::Instant;
 // use ockam::{Context, Result, Route, SecureChannel, TcpTransport, Vault, TCP};
@@ -41,21 +42,19 @@ fn main() {
     //   // Wait to receive a reply and print it.
     //   let reply = ctx.receive::<String>().await?;
     //   println!("App Received: {}", reply); // should print "Hello Ockam!"
-
-    let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
-
+    let modulus = &*RSA_2048;
     let timer = Instant::now();
-    let prime1 = hash_to_prime("asdfhjaefhliuefeajie", &modulus);
+    let prime1 = hash_to_prime("asdfhjaefhliuefeajie", modulus);
     debug!(
         "Prime {:?} calculated in {:?}ms",
         prime1,
         timer.elapsed().as_millis()
     );
 
-    let diff = &prime1 - &modulus;
+    let diff = &prime1 - modulus;
     debug!("The prime is {:?} larger than the modulus!", diff);
 
-    let mut pol = ProofOfLatency::default().init(modulus, 150000);
+    let mut pol = ProofOfLatency::default().init(modulus.clone(), 150000);
     let (input, output) = pol.open_io();
     debug!("Proof of latency instance created");
 

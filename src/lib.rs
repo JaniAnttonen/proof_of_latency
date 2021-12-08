@@ -19,15 +19,16 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 // Internal imports
 // pub mod p2p;
+pub mod rsa;
+pub mod vc;
 pub mod vdf;
+
 use crate::PoL::*;
+use rsa::RSA_2048;
 use sm::sm;
 use vdf::evaluation::{DeserializableVDFResult, VDF};
 use vdf::proof::{DeserializableVDFProof, VDFProof};
 use vdf::InvalidCapError;
-
-// RSA-2048, copied from Wikipedia
-pub const RSA_2048: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
 // State machine macro for handling the protocol state
 sm!(
@@ -529,12 +530,11 @@ impl ProofOfLatency {
 mod tests {
     use super::*;
     use ramp_primes::Verification;
-    use std::str::FromStr;
 
     #[test]
     fn runs_without_blocking() {
-        let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol = ProofOfLatency::default().init(modulus, u32::MAX);
+        let modulus = &*RSA_2048;
+        let mut pol = ProofOfLatency::default().init(modulus.clone(), u32::MAX);
 
         let (_input, _output) = pol.open_io();
 
@@ -543,10 +543,10 @@ mod tests {
 
     #[test]
     fn generator_combiner_is_commutative() {
-        let modulus = Int::from_str(RSA_2048).unwrap();
+        let modulus = &*RSA_2048;
         let rand1 = Generator::new_uint(128);
         let rand2 = Generator::new_uint(128);
-        let pol = ProofOfLatency::default().init(modulus, u32::MAX);
+        let pol = ProofOfLatency::default().init(modulus.clone(), u32::MAX);
         let result1 = pol.combine_generator_parts(&rand1, &rand2);
         let result2 = pol.combine_generator_parts(&rand2, &rand1);
         assert_eq!(result1, result2);
@@ -554,8 +554,8 @@ mod tests {
 
     #[test]
     fn runs_prover_state_machine_in_correct_order() {
-        let modulus = Int::from_str(RSA_2048).unwrap();
-        let mut pol = ProofOfLatency::default().init(modulus, 42);
+        let modulus = &*RSA_2048;
+        let mut pol = ProofOfLatency::default().init(modulus.clone(), 42);
         let (input, output) = pol.open_io();
 
         assert!(pol.start(PoLRole::Prover).is_ok());
