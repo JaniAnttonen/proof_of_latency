@@ -39,15 +39,29 @@ impl ProofOfExponentiation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rsa::RSA_2048;
+    //use crate::rsa::RSA_2048;
+    use proptest::prelude::*;
     use ramp::Int;
+
+    proptest! {
+        #[test]
+        fn poe_proptest(m in 0u16..u16::MAX, g in 0u16..u16::MAX, e in 0u16..u16::MAX) {
+            let modulus = &Int::from(m);
+            let generator =
+                &Int::from(g);
+            let exponent = &Int::from(e);
+            let current = &generator.pow_mod(exponent, modulus);
+            let proof =
+                ProofOfExponentiation::new(generator, exponent, current, modulus);
+            assert!(proof.verify(generator, exponent, current));
+        }
+    }
 
     #[test]
     fn poe_test() {
-        let modulus = &*RSA_2048;
-        let generator =
-            &Int::from_str_radix("78905317890531857319", 10).unwrap();
-        let exponent = &Int::from_str_radix("10", 10).unwrap();
+        let modulus = &Int::from_str_radix("133769", 10).unwrap();
+        let generator = &Int::from_str_radix("120420", 10).unwrap();
+        let exponent = &Int::from_str_radix("47", 10).unwrap();
         let current = &generator.pow_mod(exponent, modulus);
         let proof =
             ProofOfExponentiation::new(generator, exponent, current, modulus);

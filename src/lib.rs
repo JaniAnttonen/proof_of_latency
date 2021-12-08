@@ -528,6 +528,7 @@ impl ProofOfLatency {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rsa::RSA_2048;
     use ramp_primes::Verification;
 
     #[test]
