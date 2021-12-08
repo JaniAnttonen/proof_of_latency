@@ -24,7 +24,6 @@ pub mod vc;
 pub mod vdf;
 
 use crate::PoL::*;
-use rsa::RSA_2048;
 use sm::sm;
 use vdf::evaluation::{DeserializableVDFResult, VDF};
 use vdf::proof::{DeserializableVDFProof, VDFProof};
