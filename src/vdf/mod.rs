@@ -88,13 +88,13 @@ mod tests {
         );
 
         vdf.result = vdf.next().unwrap();
-        assert_eq!(vdf.result.result.current(), two);
+        assert_eq!(vdf.result.result.as_int(), two);
 
         vdf.result = vdf.next().unwrap();
-        assert_eq!(vdf.result.result.current(), Int::from(4));
+        assert_eq!(vdf.result.result.as_int(), Int::from(4));
 
         vdf.result = vdf.next().unwrap();
-        assert_eq!(vdf.result.result.current(), Int::from(16));
+        assert_eq!(vdf.result.result.as_int(), Int::from(16));
 
         let proof = proof::VDFProof::new(
             &vdf.modulus,

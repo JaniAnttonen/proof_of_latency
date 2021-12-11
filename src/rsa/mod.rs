@@ -1,6 +1,9 @@
 use lazy_static::lazy_static;
 use ramp::Int;
 use std::cmp::Ordering;
+use std::error::Error;
+use std::fmt;
+use std::ops::{Add, Div, Mul, Sub};
 
 pub const RSA_2048_STR: &str = "2519590847565789349402718324004839857142928212620403202777713783604366202070759555626401852588078440691829064124951508218929855914917618450280848912007284499268739280728777673597141834727026189637501497182469116507761337985909570009733045974880842840179742910064245869181719511874612151517265463228221686998754918242243363725908514186546204357679842338718477444792073993423658482382428119816381501067481045166037730605620161967625613384414360383390441495263443219011465754445417842402092461651572335077870774981712577246796292638635637328991215483143816789988504044536402352738195137863656439121201039712282120720357";
 
@@ -10,8 +13,51 @@ lazy_static! {
         Int::from_str_radix(RSA_2048_STR, 10).unwrap();
 }
 
+#[derive(Debug)]
+pub struct UnmatchingModulusError;
+
+impl fmt::Display for UnmatchingModulusError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Mismatch between the RSA modulo!")
+    }
+}
+
+impl Error for UnmatchingModulusError {
+    fn description(&self) -> &str {
+        "Mismatch between the RSA modulo!"
+    }
+}
+
 #[derive(Debug, Clone, Eq)]
 pub struct RSA(Int, Int);
+
+impl Add for RSA {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0, self.1)
+    }
+}
+
+impl Sub for RSA {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0, self.1)
+    }
+}
+
+impl Mul for RSA {
+    type Output = Self;
+    fn mul(self, other: Self) -> Self {
+        Self(self.0 * other.0, self.1)
+    }
+}
+
+impl Div for RSA {
+    type Output = Self;
+    fn div(self, other: Self) -> Self {
+        Self(self.0 / other.0, self.1)
+    }
+}
 
 impl Ord for RSA {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -49,8 +95,11 @@ impl RSA {
         let next = self.0.pow_mod(power, &self.1);
         Self(next, self.1.clone())
     }
-    pub fn current(&self) -> Int {
+    pub fn as_int(&self) -> Int {
         self.0.clone()
+    }
+    pub fn get_modulus(&self) -> Int {
+        self.1.clone()
     }
     pub fn deserialize(&self) -> String {
         self.0.to_str_radix(10, false)

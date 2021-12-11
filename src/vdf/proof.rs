@@ -201,7 +201,7 @@ impl VDFProof {
             return false;
         }
         let r = rsa::TWO.pow_mod(&Int::from(self.output.iterations), &self.cap);
-        self.output.result.current()
+        self.output.result.as_int()
             == (self.pi.pow_mod(&self.cap, &self.modulus)
                 * self.generator.pow_mod(&r, &self.modulus))
                 % &self.modulus

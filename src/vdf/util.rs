@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn hash_to_prime_produces_unique_primes_that_are_larger_than_mod() {
-        let modulus = &*RSA_2048;
+        let modulus = &Int::from_str_radix("133769", 10).unwrap();
         let input1 = "fhaehkuhalfehan";
         let input2 = "hgkrusfejs";
 
