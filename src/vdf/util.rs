@@ -45,7 +45,6 @@ pub fn hash_to_prime(s: &str, lower_bound: &Int) -> Int {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rsa::RSA_2048;
     use proptest::prelude::*;
     use ramp::Int;
     use ramp_primes::Verification;
