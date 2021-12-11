@@ -45,7 +45,6 @@ pub fn hash_to_prime(s: &str, lower_bound: &Int) -> Int {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RSA_2048;
     use proptest::prelude::*;
     use ramp::Int;
     use ramp_primes::Verification;
@@ -61,23 +60,19 @@ mod tests {
         }
     }
 
-    #[test]
-    fn hash_to_prime_produces_unique_primes_that_are_larger_than_mod() {
-        let modulus = Int::from_str_radix(RSA_2048, 10).unwrap();
-        let input1 = "fhaehkuhalfehan";
-        let input2 = "hgkrusfejs";
+    proptest! {
+        #[test]
+        fn hash_to_prime_produces_unique_primes_that_are_larger_than_mod(input1 in "\\PC*", input2 in "\\PC*") {
+            let modulus = &Int::from_str_radix("133769", 10).unwrap();
 
-        // Test that the prime hasher produces primes larger than modulus
-        let prime1 = hash_to_prime(input1, &modulus);
-        assert!(Verification::verify_prime(prime1.clone()));
-        assert!(prime1 > modulus);
+            // Test that the prime hasher produces primes larger than modulus
+            let prime1 = &hash_to_prime(&input1, modulus);
+            assert!(Verification::verify_prime(prime1.clone()));
+            assert!(prime1 > modulus);
 
-        // Test that the prime hasher produces deterministic output
-        let prime2 = hash_to_prime(input1, &modulus);
-        assert!(prime1 == prime2);
-
-        // Test that the prime hasher produces unique output
-        let prime3 = hash_to_prime(input2, &modulus);
-        assert!(prime3 != prime1);
+            // Test that the prime hasher produces unique output
+            let prime3 = &hash_to_prime(&input2, modulus);
+            assert!(prime3 != prime1);
+        }
     }
 }

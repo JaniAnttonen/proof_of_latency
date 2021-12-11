@@ -1,4 +1,6 @@
+use crate::rsa;
 use crate::vdf;
+
 use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, Sender};
 use ramp::Int;
@@ -12,7 +14,7 @@ use std::{thread, time};
 /// The end result of the VDF which we still need to prove
 #[derive(Debug, Clone, Default)]
 pub struct VDFResult {
-    pub result: Int,
+    pub result: rsa::RSA,
     pub iterations: u32,
 }
 
@@ -26,7 +28,10 @@ pub struct DeserializableVDFResult {
 impl DeserializableVDFResult {
     pub fn serialize(&self) -> VDFResult {
         VDFResult {
-            result: Int::from_str_radix(&self.result, 10).unwrap(),
+            result: rsa::RSA::new(
+                Int::from_str_radix(&self.result, 10).unwrap(),
+                rsa::RSA_2048.clone(),
+            ),
             iterations: self.iterations,
         }
     }
@@ -54,7 +59,7 @@ impl PartialEq for VDFResult {
 impl VDFResult {
     pub fn deserialize(&self) -> DeserializableVDFResult {
         DeserializableVDFResult {
-            result: self.result.to_str_radix(10, false),
+            result: self.result.deserialize(),
             iterations: self.iterations,
         }
     }
@@ -78,7 +83,6 @@ pub struct VDF {
     pub upper_bound: u32,
     pub cap: Int,
     pub result: VDFResult,
-    two: Int,
     pub proof_type: vdf::proof::ProofType,
     proof_nudger: Option<Sender<bool>>,
     proof_receiver: Option<Receiver<vdf::proof::VDFProof>>,
@@ -89,8 +93,7 @@ impl Iterator for VDF {
     fn next(&mut self) -> Option<VDFResult> {
         if self.result.iterations < self.upper_bound {
             self.result.iterations += 1;
-            self.result.result =
-                self.result.result.pow_mod(&self.two, &self.modulus);
+            self.result.result = self.result.result.clone().next_square();
             Some(self.result.clone())
         } else {
             None
@@ -137,15 +140,14 @@ impl VDF {
         proof_type: vdf::proof::ProofType,
     ) -> Self {
         Self {
-            modulus,
+            modulus: modulus.clone(),
             generator: generator.clone(),
             upper_bound,
             cap: Int::zero(),
             result: VDFResult {
-                result: generator,
+                result: rsa::RSA::new(generator, modulus),
                 iterations: 0,
             },
-            two: Int::from(2),
             proof_type,
             proof_nudger: None,
             proof_receiver: None,
